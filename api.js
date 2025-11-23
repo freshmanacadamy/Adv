@@ -260,7 +260,7 @@ try {
       const user = await getUser(userId);
       const notifications = user.notifications || {};
       
-      if (notifications[settingName] !== false) { // Default is true
+      if (notifications[settingName] !== false) {
         await bot.sendMessage(userId, message, { parse_mode: 'Markdown' });
       }
     } catch (error) {
@@ -300,896 +300,1250 @@ try {
     );
   };
 
-  // ========== START COMMAND ========== //
-  const handleStart = async (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const args = msg.text.split(' ')[1];
+// ========== START COMMAND ========== //
+const handleStart = async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  const args = msg.text.split(' ')[1];
 
-    // Handle comment redirection
-    if (args && args.startsWith('comments_')) {
-      const confessionId = args.replace('comments_', '');
-      await handleViewComments(chatId, confessionId);
-      return;
-    }
+  // Handle comment redirection
+  if (args && args.startsWith('comments_')) {
+    const confessionId = args.replace('comments_', '');
+    await handleViewComments(chatId, confessionId);
+    return;
+  }
 
-    // Get or create user
-    const user = await getUser(userId, msg);
-    
-    // Check if user is blocked (isActive = false)
-    if (user.isActive === false) {
-      await bot.sendMessage(chatId, '❌ Your account has been blocked by admin.');
-      return;
-    }
+  // Get or create user
+  const user = await getUser(userId, msg);
+  
+  if (user.isActive === false) {
+    await bot.sendMessage(chatId, '❌ Your account has been blocked by admin.');
+    return;
+  }
 
-    // If user doesn't have a username, prompt them to set one
-    if (!user.username || user.username === 'Anonymous') {
-      await bot.sendMessage(chatId,
-        `🤫 *Welcome to JU Confession Bot!*\n\n` +
-        `First, please set your display name (without $ symbol):\n\n` +
-        `Enter your desired name (3-20 characters, letters/numbers/underscores only):`
-      );
-      
-      await setUserState(userId, {
-        state: 'awaiting_username',
-        originalChatId: chatId
-      });
-      return;
-    }
-
+  // If user doesn't have a username, prompt them to set one
+  if (!user.username || user.username === 'Anonymous') {
     await bot.sendMessage(chatId,
-      `🤫 *Welcome back, ${user.username}!*\n\n` +
-      `Send me your confession and it will be submitted anonymously for admin approval.\n\n` +
-      `Your identity will never be revealed!`,
-      { parse_mode: 'Markdown' }
+      `🤫 *Welcome to JU Confession Bot!*\n\n` +
+      `First, please set your display name:\n\n` +
+      `Enter your desired name (3-20 characters, letters/numbers/underscores only):`
     );
-
-    await showMainMenu(chatId);
-  };
-
-  // ========== PROMOTE BOT ========== //
-  const handlePromoteBot = async (msg) => {
-    const chatId = msg.chat.id;
-    const BOT_USERNAME = process.env.BOT_USERNAME;
-    const CHANNEL_ID = process.env.CHANNEL_ID;
     
-    await bot.sendMessage(chatId,
-      `📢 *Help Us Grow!*\n\n` +
-      `Share our bot with friends:\n` +
-      `https://t.me/${BOT_USERNAME}\n\n` +
-      `Promotion buttons:\n` +
-      `• [Share with Friends](https://t.me/share/url?url=https://t.me/${BOT_USERNAME}&text=Check%20out%20this%20anonymous%20confession%20bot!)\n` +
-      `• [Join Channel](https://t.me/juconfessions)\n` +
-      `• [Rate Us](https://t.me/${BOT_USERNAME})`,
-      { 
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { 
-                text: '📤 Share Bot', 
-                url: `https://t.me/share/url?url=https://t.me/${BOT_USERNAME}&text=Check%20out%20this%20anonymous%20confession%20bot!`
-              }
-            ],
-            [
-              { 
-                text: '📢 Join Channel', 
-                url: CHANNEL_ID.startsWith('@') ? `https://t.me/${CHANNEL_ID.slice(1)}` : `https://t.me/juconfessions`
-              }
-            ],
-            [
-              { 
-                text: '⭐ Rate Bot', 
-                url: `https://t.me/${BOT_USERNAME}`
-              }
-            ],
-            [
-              { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
-            ]
-          ]
-        }
-      }
-    );
-  };
-
-  // ========== SEND CONFESSIOIN ========== //
-  const handleSendConfession = async (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const user = await getUser(userId);
-
-    if (!user.isActive) {
-      await bot.sendMessage(chatId, '❌ Your account has been blocked by admin.');
-      return;
-    }
-
-    // Check cooldown
-    const canSubmit = await checkCooldown(userId, 'confession', 60000);
-    if (!canSubmit) {
-      const cooldownDoc = await db.collection('cooldowns').doc(userId.toString()).get();
-      if (cooldownDoc.exists) {
-        const data = cooldownDoc.data();
-        const lastSubmit = data.confession || 0;
-        const waitTime = Math.ceil((60000 - (Date.now() - lastSubmit)) / 1000);
-        await bot.sendMessage(chatId, `Please wait ${waitTime} seconds before submitting another confession.`);
-        return;
-      }
-    }
-
     await setUserState(userId, {
-      state: 'awaiting_confession',
-      confessionData: {}
+      state: 'awaiting_username',
+      originalChatId: chatId
     });
+    return;
+  }
 
-    await bot.sendMessage(chatId,
-      `✍️ *Send Your Confession*\n\nType your confession below (max 1000 characters):\n\nYou can add hashtags like #love #study #funny`,
-      { parse_mode: 'Markdown' }
-    );
+  await bot.sendMessage(chatId,
+    `🤫 *Welcome back, ${user.username}!*\n\n` +
+    `Send me your confession and it will be submitted anonymously for admin approval.\n\n` +
+    `Your identity will never be revealed!`,
+    { parse_mode: 'Markdown' }
+  );
+
+  await showMainMenu(chatId);
+};
+
+// ========== PROMOTE BOT ========== //
+const handlePromoteBot = async (msg) => {
+  const chatId = msg.chat.id;
+  const BOT_USERNAME = process.env.BOT_USERNAME;
+  const CHANNEL_ID = process.env.CHANNEL_ID;
+  
+  await bot.sendMessage(chatId,
+    `📢 *Help Us Grow!*\n\n` +
+    `Share our bot with friends:\n` +
+    `https://t.me/${BOT_USERNAME}\n\n` +
+    `Join our channel for confessions:`,
+    { 
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { 
+              text: '📤 Share Bot', 
+              url: `https://t.me/share/url?url=https://t.me/${BOT_USERNAME}&text=Check%20out%20this%20anonymous%20confession%20bot!`
+            }
+          ],
+          [
+            { 
+              text: '📢 Join Channel', 
+              url: CHANNEL_ID.startsWith('@') ? `https://t.me/${CHANNEL_ID.slice(1)}` : `https://t.me/juconfessions`
+            }
+          ],
+          [
+            { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
+          ]
+        ]
+      }
+    }
+  );
+};
+
+// ========== SEND CONFESSION ========== //
+const handleSendConfession = async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  const user = await getUser(userId);
+
+  if (!user.isActive) {
+    await bot.sendMessage(chatId, '❌ Your account has been blocked by admin.');
+    return;
+  }
+
+  // Check cooldown
+  const canSubmit = await checkCooldown(userId, 'confession', 60000);
+  if (!canSubmit) {
+    const cooldownDoc = await db.collection('cooldowns').doc(userId.toString()).get();
+    if (cooldownDoc.exists) {
+      const data = cooldownDoc.data();
+      const lastSubmit = data.confession || 0;
+      const waitTime = Math.ceil((60000 - (Date.now() - lastSubmit)) / 1000);
+      await bot.sendMessage(chatId, `Please wait ${waitTime} seconds before submitting another confession.`);
+      return;
+    }
+  }
+
+  await setUserState(userId, {
+    state: 'awaiting_confession'
+  });
+
+  await bot.sendMessage(chatId,
+    `✍️ *Send Your Confession*\n\nType your confession below (max 1000 characters):\n\nYou can add hashtags like #love #study #funny`,
+    { parse_mode: 'Markdown' }
+  );
+};
+
+// ========== VIEW PROFILE ========== //
+const handleMyProfile = async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  const user = await getUser(userId);
+
+  const commentCount = await getCommentCount(userId);
+  const levelInfo = getUserLevel(commentCount);
+
+  const profileText = `👤 *My Profile*\n\n`;
+  const username = `**Display Name:** ${user.username}\n`;
+  const level = `**Level:** ${levelInfo.symbol} ${levelInfo.name} (${commentCount} comments)\n`;
+  const bio = user.bio ? `**Bio:** ${user.bio}\n` : `**Bio:** Not set\n`;
+  const followers = `**Followers:** ${user.followers?.length || 0}\n`;
+  const following = `**Following:** ${user.following?.length || 0}\n`;
+  const confessions = `**Total Confessions:** ${user.totalConfessions || 0}\n`;
+  const reputation = `**Reputation:** ${user.reputation || 0}\n`;
+  const achievements = `**Achievements:** ${user.achievements?.length || 0}\n`;
+  const streak = `**Daily Streak:** ${user.dailyStreak || 0} days\n`;
+  const joinDate = `**Member Since:** ${new Date(user.joinedAt).toLocaleDateString()}\n`;
+
+  const fullText = profileText + username + level + bio + followers + following + confessions + reputation + achievements + streak + joinDate;
+
+  const keyboard = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '📝 Set Username', callback_data: 'set_username' },
+          { text: '📝 Set Bio', callback_data: 'set_bio' }
+        ],
+        [
+          { text: '🔒 Comment Settings', callback_data: 'comment_settings' },
+          { text: '🔔 Notification Settings', callback_data: 'notification_settings' }
+        ],
+        [
+          { text: '📝 My Confessions', callback_data: 'my_confessions' },
+          { text: '👥 Followers', callback_data: 'show_followers' }
+        ],
+        [
+          { text: '👥 Following', callback_data: 'show_following' },
+          { text: '🏆 View Achievements', callback_data: 'view_achievements' }
+        ],
+        [
+          { text: '🏆 View Rankings', callback_data: 'view_rankings' },
+          { text: '🔍 Browse Users', callback_data: 'browse_users' }
+        ],
+        [
+          { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
+        ]
+      ]
+    }
   };
 
-  // ========== VIEW PROFILE ========== //
-  const handleMyProfile = async (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const user = await getUser(userId);
+  await bot.sendMessage(chatId, fullText, { 
+    parse_mode: 'Markdown',
+    ...keyboard
+  });
+};
 
-    const commentCount = await getCommentCount(userId);
+// ========== MY CONFESSIONS ========== //
+const handleMyConfessions = async (chatId, userId) => {
+  const user = await getUser(userId);
+
+  // Find user's confessions
+  const confessionsSnapshot = await db.collection('confessions')
+    .where('userId', '==', userId)
+    .orderBy('createdAt', 'desc')
+    .get();
+
+  if (confessionsSnapshot.empty) {
+    await bot.sendMessage(chatId, 
+      `📝 *My Confessions*\n\nYou haven't submitted any confessions yet.`
+    );
+    return;
+  }
+
+  let confessionsText = `📝 *My Confessions*\n\n`;
+
+  const confessionsList = [];
+  confessionsSnapshot.forEach(doc => {
+    confessionsList.push(doc.data());
+  });
+
+  for (const conf of confessionsList.slice(0, 10)) {
+    const status = conf.status.charAt(0).toUpperCase() + conf.status.slice(1);
+    const comments = conf.totalComments || 0;
+    const likes = conf.likes || 0;
+    
+    confessionsText += `#${conf.confessionNumber} - ${status}\n`;
+    confessionsText += `"${conf.text.substring(0, 50)}${conf.text.length > 50 ? '...' : ''}"\n`;
+    confessionsText += `Comments: ${comments} | Likes: ${likes}\n\n`;
+  }
+
+  const keyboard = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '📝 Send New', callback_data: 'send_confession' },
+          { text: '🔄 Refresh', callback_data: 'my_confessions' }
+        ],
+        [
+          { text: '🔙 Back to Profile', callback_data: 'my_profile' }
+        ]
+      ]
+    }
+  };
+
+  await bot.sendMessage(chatId, confessionsText, { 
+    parse_mode: 'Markdown',
+    ...keyboard
+  });
+};
+
+// ========== TRENDING CONFESSIONS ========== //
+const handleTrending = async (msg) => {
+  const chatId = msg.chat.id;
+
+  const confessionsSnapshot = await db.collection('confessions')
+    .where('status', '==', 'approved')
+    .orderBy('totalComments', 'desc')
+    .limit(5)
+    .get();
+
+  if (confessionsSnapshot.empty) {
+    await bot.sendMessage(chatId, 
+      `🔥 *Trending Confessions*\n\nNo trending confessions yet. Be the first to submit one!`
+    );
+    return;
+  }
+
+  let trendingText = `🔥 *Trending Confessions*\n\n`;
+
+  const confessionsList = [];
+  confessionsSnapshot.forEach(doc => {
+    confessionsList.push(doc.data());
+  });
+
+  confessionsList.forEach((confession, index) => {
+    trendingText += `${index + 1}. #${confession.confessionNumber}\n`;
+    trendingText += `   ${confession.text.substring(0, 100)}${confession.text.length > 100 ? '...' : ''}\n`;
+    trendingText += `   Comments: ${confession.totalComments || 0}\n\n`;
+  });
+
+  const keyboard = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '📝 Send Confession', callback_data: 'send_confession' },
+          { text: '🔍 Browse Users', callback_data: 'browse_users' }
+        ],
+        [
+          { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
+        ]
+      ]
+    }
+  };
+
+  await bot.sendMessage(chatId, trendingText, { 
+    parse_mode: 'Markdown',
+    ...keyboard
+  });
+};
+
+// ========== HASHTAGS ========== //
+const handleHashtags = async (msg) => {
+  const chatId = msg.chat.id;
+
+  const confessionsSnapshot = await db.collection('confessions')
+    .where('status', '==', 'approved')
+    .orderBy('createdAt', 'desc')
+    .limit(50)
+    .get();
+
+  const hashtagCount = {};
+  confessionsSnapshot.forEach(doc => {
+    const data = doc.data();
+    const hashtags = extractHashtags(data.text);
+    hashtags.forEach(tag => {
+      hashtagCount[tag] = (hashtagCount[tag] || 0) + 1;
+    });
+  });
+
+  const sortedHashtags = Object.entries(hashtagCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+
+  if (sortedHashtags.length === 0) {
+    await bot.sendMessage(chatId, 
+      `🏷️ *Popular Hashtags*\n\nNo hashtags found yet. Use #hashtags in your confessions!`
+    );
+    return;
+  }
+
+  let hashtagsText = `🏷️ *Popular Hashtags*\n\n`;
+
+  sortedHashtags.forEach(([tag, count], index) => {
+    hashtagsText += `${index + 1}. ${tag} (${count} uses)\n`;
+  });
+
+  const keyboard = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '📝 Send Confession', callback_data: 'send_confession' },
+          { text: '🔍 Browse Users', callback_data: 'browse_users' }
+        ],
+        [
+          { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
+        ]
+      ]
+    }
+  };
+
+  await bot.sendMessage(chatId, hashtagsText, { 
+    parse_mode: 'Markdown',
+    ...keyboard
+  });
+};
+
+// ========== BEST COMMENTERS ========== //
+const handleBestCommenters = async (msg) => {
+  const chatId = msg.chat.id;
+
+  // Count comments per user
+  const commentCounts = {};
+  const commentsSnapshot = await db.collection('comments').get();
+  
+  commentsSnapshot.forEach(doc => {
+    const data = doc.data();
+    if (data.comments) {
+      for (const comment of data.comments) {
+        const userId = comment.userId;
+        commentCounts[userId] = (commentCounts[userId] || 0) + 1;
+      }
+    }
+  });
+
+  // Sort users by comment count
+  const sortedUsers = Object.entries(commentCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+
+  if (sortedUsers.length === 0) {
+    await bot.sendMessage(chatId, 
+      `🏆 *Best Commenters*\n\nNo comments yet. Be the first to comment!`
+    );
+    return;
+  }
+
+  let commentersText = `🏆 *Best Commenters*\n\n`;
+
+  for (let i = 0; i < sortedUsers.length; i++) {
+    const [userId, count] = sortedUsers[i];
+    const user = await getUser(parseInt(userId));
+    const userLevel = getUserLevel(count);
+    
+    commentersText += `${i + 1}. ${userLevel.symbol} ${user?.username || 'Anonymous'} (${count} comments)\n`;
+  }
+
+  const keyboard = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '🔍 View My Rank', callback_data: 'view_my_rank' }
+        ],
+        [
+          { text: '📝 Add Comment', callback_data: 'add_comment' },
+          { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
+        ]
+      ]
+    }
+  };
+
+  await bot.sendMessage(chatId, commentersText, { 
+    parse_mode: 'Markdown',
+    ...keyboard
+  });
+};
+
+// ========== BROWSE USERS ========== //
+const handleBrowseUsers = async (msg) => {
+  const chatId = msg.chat.id;
+  const currentUserId = msg.from.id;
+
+  const usersSnapshot = await db.collection('users')
+    .where('username', '!=', null)
+    .where('isActive', '==', true)
+    .where('telegramId', '!=', currentUserId)
+    .orderBy('reputation', 'desc')
+    .limit(10)
+    .get();
+
+  if (usersSnapshot.empty) {
+    await bot.sendMessage(chatId, 
+      `🔍 *Browse Users*\n\nNo users found.`
+    );
+    return;
+  }
+
+  let usersText = `🔍 *Browse Users*\n\n`;
+  const keyboard = [];
+
+  const usersList = [];
+  usersSnapshot.forEach(doc => {
+    usersList.push(doc.data());
+  });
+
+  for (const user of usersList) {
+    const name = user.username;
+    const bio = user.bio || 'No bio';
+    const followers = user.followers?.length || 0;
+    const reputation = user.reputation || 0;
+    const commentCount = await getCommentCount(user.telegramId);
     const levelInfo = getUserLevel(commentCount);
 
-    const profileText = `👤 *My Profile*\n\n`;
-    const username = user.username ? `**Username:** ${user.username}\n` : `**Username:** Not set\n`;
-    const level = `**Level:** ${levelInfo.symbol} ${levelInfo.name} (${commentCount} comments)\n`;
-    const bio = user.bio ? `**Bio:** ${user.bio}\n` : `**Bio:** Not set\n`;
-    const followers = `**Followers:** ${user.followers?.length || 0}\n`;
-    const following = `**Following:** ${user.following?.length || 0}\n`;
-    const confessions = `**Total Confessions:** ${user.totalConfessions || 0}\n`;
-    const reputation = `**Reputation:** ${user.reputation || 0}\n`;
-    const achievements = `**Achievements:** ${user.achievements?.length || 0}\n`;
-    const streak = `**Daily Streak:** ${user.dailyStreak || 0} days\n`;
-    const joinDate = `**Member Since:** ${new Date(user.joinedAt).toLocaleDateString()}\n`;
-
-    const fullText = profileText + username + level + bio + followers + following + confessions + reputation + achievements + streak + joinDate;
-
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '📝 Set Username', callback_data: 'set_username' },
-            { text: '📝 Set Bio', callback_data: 'set_bio' }
-          ],
-          [
-            { text: '🔒 Comment Settings', callback_data: 'comment_settings' },
-            { text: '🔔 Notification Settings', callback_data: 'notification_settings' }
-          ],
-          [
-            { text: '📝 My Confessions', callback_data: 'my_confessions' },
-            { text: '👥 Followers', callback_data: 'show_followers' }
-          ],
-          [
-            { text: '👥 Following', callback_data: 'show_following' },
-            { text: '🏆 View Achievements', callback_data: 'view_achievements' }
-          ],
-          [
-            { text: '🏆 View Rankings', callback_data: 'view_rankings' },
-            { text: '🔍 Browse Users', callback_data: 'browse_users' }
-          ],
-          [
-            { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
-          ]
-        ]
-      }
-    };
-
-    await bot.sendMessage(chatId, fullText, { 
-      parse_mode: 'Markdown',
-      ...keyboard
-    });
-  };
-
-  // ========== MY CONFESSIONS ========== //
-  const handleMyConfessions = async (chatId, userId) => {
-    const user = await getUser(userId);
-
-    // Find user's confessions
-    const confessionsSnapshot = await db.collection('confessions')
-      .where('userId', '==', userId)
-      .orderBy('createdAt', 'desc')
-      .get();
-
-    if (confessionsSnapshot.empty) {
-      await bot.sendMessage(chatId, 
-        `📝 *My Confessions*\n\nYou haven't submitted any confessions yet.`
-      );
-      return;
-    }
-
-    let confessionsText = `📝 *My Confessions*\n\n`;
-
-    const confessionsList = [];
-    confessionsSnapshot.forEach(doc => {
-      confessionsList.push(doc.data());
-    });
-
-    for (const conf of confessionsList.slice(0, 10)) { // Show first 10
-      const status = conf.status.charAt(0).toUpperCase() + conf.status.slice(1);
-      const comments = conf.totalComments || 0;
-      const likes = conf.likes || 0;
-      
-      confessionsText += `#${conf.confessionNumber} - ${status}\n`;
-      confessionsText += `"${conf.text.substring(0, 50)}${conf.text.length > 50 ? '...' : ''}"\n`;
-      confessionsText += `Comments: ${comments} | Likes: ${likes}\n\n`;
-    }
-
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '📝 Send New', callback_data: 'send_confession' },
-            { text: '🔄 Refresh', callback_data: 'my_confessions' }
-          ],
-          [
-            { text: '🔙 Back to Profile', callback_data: 'my_profile' }
-          ]
-        ]
-      }
-    };
-
-    await bot.sendMessage(chatId, confessionsText, { 
-      parse_mode: 'Markdown',
-      ...keyboard
-    });
-  };
-
-  // ========== TRENDING CONFESSIONS ========== //
-  const handleTrending = async (msg) => {
-    const chatId = msg.chat.id;
-
-    const confessionsSnapshot = await db.collection('confessions')
-      .where('status', '==', 'approved')
-      .orderBy('totalComments', 'desc')
-      .limit(5)
-      .get();
-
-    if (confessionsSnapshot.empty) {
-      await bot.sendMessage(chatId, 
-        `🔥 *Trending Confessions*\n\nNo trending confessions yet. Be the first to submit one!`
-      );
-      return;
-    }
-
-    let trendingText = `🔥 *Trending Confessions*\n\n`;
-
-    const confessionsList = [];
-    confessionsSnapshot.forEach(doc => {
-      confessionsList.push(doc.data());
-    });
-
-    confessionsList.forEach((confession, index) => {
-      trendingText += `${index + 1}. #${confession.confessionNumber}\n`;
-      trendingText += `   ${confession.text.substring(0, 100)}${confession.text.length > 100 ? '...' : ''}\n`;
-      trendingText += `   Comments: ${confession.totalComments || 0}\n\n`;
-    });
-
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '📝 Send Confession', callback_data: 'send_confession' },
-            { text: '🔍 Browse Users', callback_data: 'browse_users' }
-          ],
-          [
-            { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
-          ]
-        ]
-      }
-    };
-
-    await bot.sendMessage(chatId, trendingText, { 
-      parse_mode: 'Markdown',
-      ...keyboard
-    });
-  };
-
-  // ========== HASHTAGS ========== //
-  const handleHashtags = async (msg) => {
-    const chatId = msg.chat.id;
-
-    const confessionsSnapshot = await db.collection('confessions')
-      .where('status', '==', 'approved')
-      .orderBy('createdAt', 'desc')
-      .limit(50)
-      .get();
-
-    const hashtagCount = {};
-    confessionsSnapshot.forEach(doc => {
-      const data = doc.data();
-      const hashtags = extractHashtags(data.text);
-      hashtags.forEach(tag => {
-        hashtagCount[tag] = (hashtagCount[tag] || 0) + 1;
-      });
-    });
-
-    const sortedHashtags = Object.entries(hashtagCount)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10);
-
-    if (sortedHashtags.length === 0) {
-      await bot.sendMessage(chatId, 
-        `🏷️ *Popular Hashtags*\n\nNo hashtags found yet. Use #hashtags in your confessions!`
-      );
-      return;
-    }
-
-    let hashtagsText = `🏷️ *Popular Hashtags*\n\n`;
-
-    sortedHashtags.forEach(([tag, count], index) => {
-      hashtagsText += `${index + 1}. ${tag} (${count} uses)\n`;
-    });
-
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '📝 Send Confession', callback_data: 'send_confession' },
-            { text: '🔍 Browse Users', callback_data: 'browse_users' }
-          ],
-          [
-            { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
-          ]
-        ]
-      }
-    };
-
-    await bot.sendMessage(chatId, hashtagsText, { 
-      parse_mode: 'Markdown',
-      ...keyboard
-    });
-  };
-
-  // ========== BEST COMMENTERS ========== //
-  const handleBestCommenters = async (msg) => {
-    const chatId = msg.chat.id;
-
-    // Count comments per user
-    const commentCounts = {};
-    const commentsSnapshot = await db.collection('comments').get();
-    
-    commentsSnapshot.forEach(doc => {
-      const data = doc.data();
-      if (data.comments) {
-        for (const comment of data.comments) {
-          const userId = comment.userId;
-          commentCounts[userId] = (commentCounts[userId] || 0) + 1;
-        }
-      }
-    });
-
-    // Sort users by comment count
-    const sortedUsers = Object.entries(commentCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10);
-
-    if (sortedUsers.length === 0) {
-      await bot.sendMessage(chatId, 
-        `🏆 *Best Commenters*\n\nNo comments yet. Be the first to comment!`
-      );
-      return;
-    }
-
-    let commentersText = `🏆 *Best Commenters - Weekly*\n\n`;
-
-    for (let i = 0; i < sortedUsers.length; i++) {
-      const [userId, count] = sortedUsers[i];
-      const user = await getUser(parseInt(userId));
-      const userLevel = getUserLevel(count);
-      
-      commentersText += `${i + 1}. ${userLevel.symbol} ${user?.username || 'Anonymous'} (${count} comments)\n`;
-    }
-
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '🔄 Weekly', callback_data: 'best_commenters_weekly' },
-            { text: '📅 Monthly', callback_data: 'best_commenters_monthly' }
-          ],
-          [
-            { text: '📈 All Time', callback_data: 'best_commenters_all' },
-            { text: '🔍 View My Rank', callback_data: 'view_my_rank' }
-          ],
-          [
-            { text: '📝 Add Comment', callback_data: 'add_comment' },
-            { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
-          ]
-        ]
-      }
-    };
-
-    await bot.sendMessage(chatId, commentersText, { 
-      parse_mode: 'Markdown',
-      ...keyboard
-    });
-  };
-
-  // ========== BROWSE USERS ========== //
-  const handleBrowseUsers = async (msg) => {
-    const chatId = msg.chat.id;
-    const currentUserId = msg.from.id;
-
-    const usersSnapshot = await db.collection('users')
-      .where('username', '!=', null)
-      .where('isActive', '==', true)
-      .where('telegramId', '!=', currentUserId)
-      .orderBy('reputation', 'desc')
-      .limit(10)
-      .get();
-
-    if (usersSnapshot.empty) {
-      await bot.sendMessage(chatId, 
-        `🔍 *Browse Users*\n\nNo users found.`
-      );
-      return;
-    }
-
-    let usersText = `🔍 *Browse Users*\n\n`;
-    const keyboard = [];
-
-    const usersList = [];
-    usersSnapshot.forEach(doc => {
-      usersList.push(doc.data());
-    });
-
-    for (const user of usersList) {
-      const name = user.username;
-      const bio = user.bio || 'No bio';
-      const followers = user.followers?.length || 0;
-      const reputation = user.reputation || 0;
-      const commentCount = await getCommentCount(user.telegramId);
-      const levelInfo = getUserLevel(commentCount);
-
-      usersText += `• ${levelInfo.symbol} ${name} (${reputation}⭐, ${followers} followers)\n`;
-      usersText += `  ${bio}\n\n`;
-
-      keyboard.push([
-        { text: `👤 View ${name}`, callback_data: `view_profile_${user.telegramId}` }
-      ]);
-    }
-
-    keyboard.push([{ text: '🔙 Back to Menu', callback_data: 'back_to_menu' }]);
-
-    const inlineKeyboard = {
-      reply_markup: {
-        inline_keyboard: keyboard
-      }
-    };
-
-    await bot.sendMessage(chatId, usersText, { 
-      parse_mode: 'Markdown',
-      ...inlineKeyboard
-    });
-  };
-
-  // ========== ABOUT US ========== //
-  const handleAbout = async (msg) => {
-    const chatId = msg.chat.id;
-    
-    const text = `ℹ️ *About Us*\n\nThis is an anonymous confession platform for JU students.\n\nFeatures:\n• Anonymous confessions\n• Admin approval system\n• User profiles\n• Social features\n• Comment system\n• Reputation system\n• Achievements\n• Level system\n• Best commenters\n• Promotion features\n\n100% private and secure.`;
-
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '📝 Send Confession', callback_data: 'send_confession' },
-            { text: '📢 Promote Bot', callback_data: 'promote_bot' }
-          ],
-          [
-            { text: '🔍 Browse Users', callback_data: 'browse_users' },
-            { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
-          ]
-        ]
-      }
-    };
-
-    await bot.sendMessage(chatId, text, { 
-      parse_mode: 'Markdown',
-      ...keyboard
-    });
-  };
-
-  // ========== RULES ========== //
-  const handleRules = async (msg) => {
-    const chatId = msg.chat.id;
-    
-    const text = `📌 *Confession Rules*\n\n✅ Be respectful\n✅ No personal attacks\n✅ No spam or ads\n✅ Keep it anonymous\n✅ No hate speech\n✅ No illegal content\n✅ No harassment\n✅ Use appropriate hashtags`;
-
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '📝 Send Confession', callback_data: 'send_confession' },
-            { text: '📢 Promote Bot', callback_data: 'promote_bot' }
-          ],
-          [
-            { text: '🔍 Browse Users', callback_data: 'browse_users' },
-            { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
-          ]
-        ]
-      }
-    };
-
-    await bot.sendMessage(chatId, text, { 
-      parse_mode: 'Markdown',
-      ...keyboard
-    });
-  };
-
-  // ========== CONFESSIOIN SUBMISSION ========== //
-  const handleConfessionSubmission = async (msg, text) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-
-    if (!text || text.trim().length < 5) {
-      await bot.sendMessage(chatId, '❌ Confession too short. Minimum 5 characters.');
-      return;
-    }
-
-    if (text.length > 1000) {
-      await bot.sendMessage(chatId, '❌ Confession too long. Maximum 1000 characters.');
-      return;
-    }
-
-    try {
-      const sanitizedText = sanitizeInput(text);
-      const confessionId = `confess_${userId}_${Date.now()}`;
-      const hashtags = extractHashtags(sanitizedText);
-
-      const confessionNumber = await incrementCounter('confessionNumber');
-      const confessionData = {
-        id: confessionId,
-        confessionId: confessionId,
-        userId: userId,
-        text: sanitizedText.trim(),
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        hashtags: hashtags,
-        totalComments: 0,
-        confessionNumber: confessionNumber,
-        likes: 0
-      };
-
-      await createConfession(confessionData);
-
-      // Update user stats
-      await updateUser(userId, {
-        totalConfessions: admin.firestore.FieldValue.increment(1)
-      });
-
-      // Set cooldown
-      await setCooldown(userId, 'confession');
-
-      // Notify admins
-      await notifyAdmins(confessionId, sanitizedText, confessionNumber);
-
-      const keyboard = {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: '📝 Send Another', callback_data: 'send_confession' },
-              { text: '📢 Promote Bot', callback_data: 'promote_bot' }
-            ],
-            [
-              { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
-            ]
-          ]
-        }
-      };
-
-      await bot.sendMessage(chatId,
-        `✅ *Confession Submitted!*\n\nYour confession is under review. You'll be notified when approved.`,
-        { parse_mode: 'Markdown', ...keyboard }
-      );
-
-    } catch (error) {
-      console.error('Submission error:', error);
-      await bot.sendMessage(chatId, '❌ Error submitting confession. Please try again.');
-    }
-  };
-
-  // ========== NOTIFY ADMINS ========== //
-  const notifyAdmins = async (confessionId, text, confessionNumber) => {
-    const ADMIN_IDS = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',').map(Number) : [];
-    
-    if (ADMIN_IDS.length === 0) {
-      console.log('❌ No admin IDs configured in environment variables');
-      return;
-    }
-
-    const previewText = text.length > 200 ? text.substring(0, 200) + '...' : text;
-    const message = `🤫 *New Confession #${confessionNumber}*\n\n${previewText}\n\n*Actions:*`;
-
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '✅ Approve', callback_data: `approve_${confessionId}` },
-            { text: '❌ Reject', callback_data: `reject_${confessionId}` }
-          ]
-        ]
-      }
-    };
-
-    console.log(`📤 Notifying ${ADMIN_IDS.length} admins about confession ${confessionId}`);
-
-    for (const adminId of ADMIN_IDS) {
-      try {
-        await bot.sendMessage(adminId, message, { 
-          parse_mode: 'Markdown', 
-          ...keyboard 
-        });
-      } catch (error) {
-        console.error(`Admin notify error ${adminId}:`, error.message);
-      }
-    }
-  };
-
-  // ========== POST TO CHANNEL ========== //
-  const postToChannel = async (text, number, confessionId) => {
-    const CHANNEL_ID = process.env.CHANNEL_ID;
-    const BOT_USERNAME = process.env.BOT_USERNAME;
-    
-    if (!CHANNEL_ID) {
-      console.error('❌ CHANNEL_ID not configured');
-      return;
-    }
-
-    try {
-      const message = `#${number}\n\n${text}\n\n💬 Comment on this confession:`;
-      
-      await bot.sendMessage(CHANNEL_ID, message, {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { 
-                text: '👁️‍🗨️ View/Add Comments', 
-                url: `https://t.me/${BOT_USERNAME}?start=comments_${confessionId}`
-              }
-            ]
-          ]
-        }
-      });
-
-      // Initialize comments collection
-      await updateComment(confessionId, {
-        confessionId: confessionId,
-        confessionNumber: number,
-        confessionText: text,
-        comments: [],
-        totalComments: 0
-      });
-      
-      console.log(`✅ Confession #${number} posted to channel`);
-    } catch (error) {
-      console.error('Channel post error:', error);
-    }
-  };
-
-  // ========== NOTIFY USER ========== //
-  const notifyUser = async (userId, number, status, reason = '') => {
-    try {
-      let message = '';
-      if (status === 'approved') {
-        message = `🎉 *Your Confession #${number} was approved!*\n\nIt has been posted to the channel.\n\n⭐ +10 reputation points`;
-        await sendNotification(userId, message, 'newConfession');
-      } else if (status === 'rejected') {
-        message = `❌ *Confession Not Approved*\n\nReason: ${reason}\n\nYou can submit a new one.`;
-        await sendNotification(userId, message, 'newConfession');
-      } else {
-        message = `❌ *Confession Not Approved*\n\nReason: ${reason}\n\nYou can submit a new one.`;
-        await sendNotification(userId, message, 'newConfession');
-      }
-    } catch (error) {
-      console.error('User notify error:', error);
-    }
-  };
-
-  // ========== VIEW COMMENTS ========== //
-  const handleViewComments = async (chatId, confessionId, page = 1) => {
-    const commentData = await getComment(confessionId);
-    
-    if (!commentData) {
-      await bot.sendMessage(chatId, '❌ Confession not found.');
-      return;
-    }
-
-    const commentList = commentData.comments || [];
-    const commentsPerPage = 3;
-    const totalPages = Math.ceil(commentList.length / commentsPerPage);
-    const startIndex = (page - 1) * commentsPerPage;
-    const endIndex = startIndex + commentsPerPage;
-    const pageComments = commentList.slice(startIndex, endIndex);
-
-    let commentText = `💬 Comments for Confession #${commentData.confessionNumber}\n`;
-    commentText += `This is the confession text...\n\n`;
-
-    if (pageComments.length === 0) {
-      commentText += 'No comments yet. Be the first to comment!\n\n';
-    } else {
-      commentText += `Comments (${startIndex + 1}-${Math.min(endIndex, commentList.length)} of ${commentList.length}):\n\n`;
-      for (let i = 0; i < pageComments.length; i++) {
-        const comment = pageComments[i];
-        const user = await getUser(comment.userId);
-        const userLevel = getUserLevel(await getCommentCount(comment.userId));
-        
-        commentText += `${startIndex + i + 1}. ${comment.text}\n`;
-        commentText += `   - ${userLevel.symbol} ${user?.username || 'Anonymous'}\n\n`;
-      }
-    }
-
-    const confession = await getConfession(confessionId);
-    const author = await getUser(confession?.userId);
-
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '📝 Add Comment', callback_data: `add_comment_${confessionId}` },
-            { text: author ? `👤 Follow ${author.username}` : '👤 Follow Author', callback_data: `follow_author_${confessionId}` }
-          ]
-        ]
-      }
-    };
-
-    // Add pagination buttons if needed
-    if (totalPages > 1) {
-      const paginationRow = [];
-      
-      if (page > 1) {
-        paginationRow.push({ text: '⬅️ Previous', callback_data: `comments_page_${confessionId}_${page - 1}` });
-      }
-      
-      paginationRow.push({ text: `${page}/${totalPages}`, callback_data: `comments_page_${confessionId}_${page}` });
-      
-      if (page < totalPages) {
-        paginationRow.push({ text: 'Next ➡️', callback_data: `comments_page_${confessionId}_${page + 1}` });
-      }
-      
-      keyboard.reply_markup.inline_keyboard.push(paginationRow);
-    }
-
-    keyboard.reply_markup.inline_keyboard.push([
-      { text: '👤 View Profile', callback_data: 'view_profile' },
-      { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
+    usersText += `• ${levelInfo.symbol} ${name} (${reputation}⭐, ${followers} followers)\n`;
+    usersText += `  ${bio}\n\n`;
+
+    keyboard.push([
+      { text: `👤 View ${name}`, callback_data: `view_profile_${user.telegramId}` }
     ]);
+  }
 
-    await bot.sendMessage(chatId, commentText, { 
-      parse_mode: 'Markdown',
-      ...keyboard
-    });
+  keyboard.push([{ text: '🔙 Back to Menu', callback_data: 'back_to_menu' }]);
+
+  const inlineKeyboard = {
+    reply_markup: {
+      inline_keyboard: keyboard
+    }
   };
 
-  // ========== ADD COMMENT ========== //
-  const handleAddComment = async (chatId, confessionId, commentText) => {
-    const userId = chatId;
-    
-    if (!commentText || commentText.trim().length < 3) {
-      await bot.sendMessage(chatId, '❌ Comment too short. Minimum 3 characters.');
-      return;
+  await bot.sendMessage(chatId, usersText, { 
+    parse_mode: 'Markdown',
+    ...inlineKeyboard
+  });
+};
+
+// ========== ABOUT US ========== //
+const handleAbout = async (msg) => {
+  const chatId = msg.chat.id;
+  
+  const text = `ℹ️ *About Us*\n\nThis is an anonymous confession platform for JU students.\n\nFeatures:\n• Anonymous confessions\n• Admin approval system\n• User profiles\n• Social features\n• Comment system\n• Reputation system\n• Achievements\n• Level system\n• Best commenters\n• Promotion features\n\n100% private and secure.`;
+
+  const keyboard = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '📝 Send Confession', callback_data: 'send_confession' },
+          { text: '📢 Promote Bot', callback_data: 'promote_bot' }
+        ],
+        [
+          { text: '🔍 Browse Users', callback_data: 'browse_users' },
+          { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
+        ]
+      ]
     }
+  };
 
-    if (!await checkCommentRateLimit(userId)) {
-      await bot.sendMessage(chatId, '❌ Too many comments. Please wait before adding another comment.');
-      return;
+  await bot.sendMessage(chatId, text, { 
+    parse_mode: 'Markdown',
+    ...keyboard
+  });
+};
+
+// ========== RULES ========== //
+const handleRules = async (msg) => {
+  const chatId = msg.chat.id;
+  
+  const text = `📌 *Confession Rules*\n\n✅ Be respectful\n✅ No personal attacks\n✅ No spam or ads\n✅ Keep it anonymous\n✅ No hate speech\n✅ No illegal content\n✅ No harassment\n✅ Use appropriate hashtags`;
+
+  const keyboard = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '📝 Send Confession', callback_data: 'send_confession' },
+          { text: '📢 Promote Bot', callback_data: 'promote_bot' }
+        ],
+        [
+          { text: '🔍 Browse Users', callback_data: 'browse_users' },
+          { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
+        ]
+      ]
     }
+  };
 
-    const commentData = await getComment(confessionId);
-    if (!commentData) {
-      await bot.sendMessage(chatId, '❌ Confession not found.');
-      return;
-    }
+  await bot.sendMessage(chatId, text, { 
+    parse_mode: 'Markdown',
+    ...keyboard
+  });
+};
 
-    const sanitizedComment = sanitizeInput(commentText);
+// ========== CONFESSION SUBMISSION ========== //
+const handleConfessionSubmission = async (msg, text) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
 
-    const newComment = {
-      id: `comment_${Date.now()}_${userId}`,
-      text: sanitizedComment.trim(),
+  if (!text || text.trim().length < 5) {
+    await bot.sendMessage(chatId, '❌ Confession too short. Minimum 5 characters.');
+    return;
+  }
+
+  if (text.length > 1000) {
+    await bot.sendMessage(chatId, '❌ Confession too long. Maximum 1000 characters.');
+    return;
+  }
+
+  try {
+    const sanitizedText = sanitizeInput(text);
+    const confessionId = `confess_${userId}_${Date.now()}`;
+    const hashtags = extractHashtags(sanitizedText);
+
+    const confessionNumber = await incrementCounter('confessionNumber');
+    const confessionData = {
+      id: confessionId,
+      confessionId: confessionId,
       userId: userId,
-      userName: (await getUser(userId)).firstName || 'Anonymous',
-      timestamp: new Date().toLocaleString(),
-      createdAt: new Date().toISOString()
+      text: sanitizedText.trim(),
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      hashtags: hashtags,
+      totalComments: 0,
+      confessionNumber: confessionNumber,
+      likes: 0
     };
 
-    const updatedComments = [...(commentData.comments || []), newComment];
-    await updateComment(confessionId, {
-      ...commentData,
-      comments: updatedComments,
-      totalComments: (commentData.totalComments || 0) + 1
-    });
+    await createConfession(confessionData);
 
-    // Update confession total comments
-    await updateConfession(confessionId, {
-      totalComments: admin.firestore.FieldValue.increment(1)
-    });
-
-    await recordComment(userId);
-
-    const user = await getUser(userId);
+    // Update user stats
     await updateUser(userId, {
-      reputation: admin.firestore.FieldValue.increment(5)
+      totalConfessions: admin.firestore.FieldValue.increment(1)
     });
 
-    await bot.sendMessage(chatId, '✅ Comment added successfully!');
-    
-    // Get confession author and send notification if enabled
-    const confession = await getConfession(confessionId);
-    if (confession && confession.userId !== userId) { // Don't notify if user comments on own confession
-      await sendNotification(confession.userId,
-        `💬 *New Comment on Your Confession*\n\nConfession #${confession.confessionNumber} has a new comment!\n\n"${sanitizedComment.substring(0, 50)}${sanitizedComment.length > 50 ? '...' : ''}"`,
-        'newComment'
-      );
-    }
-    
-    await handleViewComments(chatId, confessionId);
-  };
+    // Set cooldown
+    await setCooldown(userId, 'confession');
 
-  // ========== ADMIN COMMANDS ========== //
-  const handleAdmin = async (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-
-    if (!isAdmin(userId)) {
-      await bot.sendMessage(chatId, '❌ Access denied. Admin only command.');
-      return;
-    }
-
-    const usersSnapshot = await db.collection('users').get();
-    const confessionsSnapshot = await db.collection('confessions').get();
-
-    const totalUsers = usersSnapshot.size;
-    const totalConfessions = confessionsSnapshot.size;
-    const pendingConfessions = (await db.collection('confessions').where('status', '==', 'pending').get()).size;
-    const approvedConfessions = (await db.collection('confessions').where('status', '==', 'approved').get()).size;
-    const rejectedConfessions = (await db.collection('confessions').where('status', '==', 'rejected').get()).size;
-
-    const text = `🔐 *Admin Dashboard*\n\n`;
-    const usersStat = `**Total Users:** ${totalUsers}\n`;
-    const confessionsStat = `**Pending Confessions:** ${pendingConfessions}\n`;
-    const approvedStat = `**Approved Confessions:** ${approvedConfessions}\n`;
-    const rejectedStat = `**Rejected Confessions:** ${rejectedConfessions}\n`;
-
-    const fullText = text + usersStat + confessionsStat + approvedStat + rejectedStat;
+    // Notify admins
+    await notifyAdmins(confessionId, sanitizedText, confessionNumber);
 
     const keyboard = {
       reply_markup: {
         inline_keyboard: [
           [
-            { text: '👥 Manage Users', callback_data: 'manage_users' },
-            { text: '📝 Review Confessions', callback_data: 'review_confessions' }
+            { text: '📝 Send Another', callback_data: 'send_confession' },
+            { text: '📢 Promote Bot', callback_data: 'promote_bot' }
           ],
           [
-            { text: '📊 Bot Statistics', callback_data: 'bot_stats' },
-            { text: '❌ Block User', callback_data: 'block_user' }
-          ],
-          [
-            { text: '💬 Monitor Chats', callback_data: 'monitor_chats' },
-            { text: '👤 Add Admin', callback_data: 'add_admin' }
-          ],
-          [
-            { text: '🔧 Maintenance Mode', callback_data: 'toggle_maintenance' },
-            { text: '✉️ Message User', callback_data: 'message_user' }
-          ],
-          [
-            { text: '📢 Broadcast Message', callback_data: 'broadcast_message' },
-            { text: '⚙️ Bot Settings', callback_data: 'bot_settings' }
+            { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
           ]
         ]
       }
     };
 
-    await bot.sendMessage(chatId, fullText, { 
-      parse_mode: 'Markdown',
-      ...keyboard
-    });
+    await bot.sendMessage(chatId,
+      `✅ *Confession Submitted!*\n\nYour confession is under review. You'll be notified when approved.`,
+      { parse_mode: 'Markdown', ...keyboard }
+    );
+
+  } catch (error) {
+    console.error('Submission error:', error);
+    await bot.sendMessage(chatId, '❌ Error submitting confession. Please try again.');
+  }
+};
+
+// ========== NOTIFY ADMINS ========== //
+const notifyAdmins = async (confessionId, text, confessionNumber) => {
+  const ADMIN_IDS = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',').map(Number) : [];
+  
+  if (ADMIN_IDS.length === 0) {
+    console.log('❌ No admin IDs configured in environment variables');
+    return;
+  }
+
+  const previewText = text.length > 200 ? text.substring(0, 200) + '...' : text;
+  const message = `🤫 *New Confession #${confessionNumber}*\n\n${previewText}\n\n*Actions:*`;
+
+  const keyboard = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '✅ Approve', callback_data: `approve_${confessionId}` },
+          { text: '❌ Reject', callback_data: `reject_${confessionId}` }
+        ]
+      ]
+    }
   };
+
+  console.log(`📤 Notifying ${ADMIN_IDS.length} admins about confession ${confessionId}`);
+
+  for (const adminId of ADMIN_IDS) {
+    try {
+      await bot.sendMessage(adminId, message, { 
+        parse_mode: 'Markdown', 
+        ...keyboard 
+      });
+    } catch (error) {
+      console.error(`Admin notify error ${adminId}:`, error.message);
+    }
+  }
+};
+
+// ========== POST TO CHANNEL ========== //
+const postToChannel = async (text, number, confessionId) => {
+  const CHANNEL_ID = process.env.CHANNEL_ID;
+  const BOT_USERNAME = process.env.BOT_USERNAME;
+  
+  if (!CHANNEL_ID) {
+    console.error('❌ CHANNEL_ID not configured');
+    return;
+  }
+
+  try {
+    const message = `#${number}\n\n${text}\n\n💬 Comment on this confession:`;
+    
+    await bot.sendMessage(CHANNEL_ID, message, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { 
+              text: '👁️‍🗨️ View/Add Comments', 
+              url: `https://t.me/${BOT_USERNAME}?start=comments_${confessionId}`
+            }
+          ]
+        ]
+      }
+    });
+
+    // Initialize comments collection
+    await updateComment(confessionId, {
+      confessionId: confessionId,
+      confessionNumber: number,
+      confessionText: text,
+      comments: [],
+      totalComments: 0
+    });
+    
+    console.log(`✅ Confession #${number} posted to channel`);
+  } catch (error) {
+    console.error('Channel post error:', error);
+  }
+};
+
+// ========== NOTIFY USER ========== //
+const notifyUser = async (userId, number, status, reason = '') => {
+  try {
+    let message = '';
+    if (status === 'approved') {
+      message = `🎉 *Your Confession #${number} was approved!*\n\nIt has been posted to the channel.\n\n⭐ +10 reputation points`;
+      await sendNotification(userId, message, 'newConfession');
+    } else if (status === 'rejected') {
+      message = `❌ *Confession Not Approved*\n\nReason: ${reason}\n\nYou can submit a new one.`;
+      await sendNotification(userId, message, 'newConfession');
+    }
+  } catch (error) {
+    console.error('User notify error:', error);
+  }
+};
+
+// ========== VIEW COMMENTS ========== //
+const handleViewComments = async (chatId, confessionId, page = 1) => {
+  const commentData = await getComment(confessionId);
+  
+  if (!commentData || !commentData.confessionNumber) {
+    await bot.sendMessage(chatId, '❌ Confession not found.');
+    return;
+  }
+
+  const commentList = commentData.comments || [];
+  const commentsPerPage = 3;
+  const totalPages = Math.ceil(commentList.length / commentsPerPage);
+  const startIndex = (page - 1) * commentsPerPage;
+  const endIndex = startIndex + commentsPerPage;
+  const pageComments = commentList.slice(startIndex, endIndex);
+
+  let commentText = `💬 Comments for Confession #${commentData.confessionNumber}\n\n`;
+
+  if (pageComments.length === 0) {
+    commentText += 'No comments yet. Be the first to comment!\n\n';
+  } else {
+    commentText += `Comments (${startIndex + 1}-${Math.min(endIndex, commentList.length)} of ${commentList.length}):\n\n`;
+    for (let i = 0; i < pageComments.length; i++) {
+      const comment = pageComments[i];
+      const user = await getUser(comment.userId);
+      const userLevel = getUserLevel(await getCommentCount(comment.userId));
+      
+      commentText += `${startIndex + i + 1}. ${comment.text}\n`;
+      commentText += `   - ${userLevel.symbol} ${user?.username || 'Anonymous'}\n\n`;
+    }
+  }
+
+  const confession = await getConfession(confessionId);
+  const author = confession ? await getUser(confession.userId) : null;
+
+  const keyboard = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '📝 Add Comment', callback_data: `add_comment_${confessionId}` }
+        ]
+      ]
+    }
+  };
+
+  // Add follow button if author exists and is not current user
+  if (author && author.telegramId !== chatId) {
+    const currentUser = await getUser(chatId);
+    const isFollowing = (currentUser?.following || []).includes(author.telegramId);
+    keyboard.reply_markup.inline_keyboard[0].push(
+      isFollowing 
+        ? { text: '✅ Following', callback_data: `unfollow_${author.telegramId}` }
+        : { text: '👤 Follow Author', callback_data: `follow_author_${confessionId}` }
+    );
+  }
+
+  // Add pagination buttons if needed
+  if (totalPages > 1) {
+    const paginationRow = [];
+    
+    if (page > 1) {
+      paginationRow.push({ text: '⬅️ Previous', callback_data: `comments_page_${confessionId}_${page - 1}` });
+    }
+    
+    paginationRow.push({ text: `${page}/${totalPages}`, callback_data: `current_page` });
+    
+    if (page < totalPages) {
+      paginationRow.push({ text: 'Next ➡️', callback_data: `comments_page_${confessionId}_${page + 1}` });
+    }
+    
+    keyboard.reply_markup.inline_keyboard.push(paginationRow);
+  }
+
+  keyboard.reply_markup.inline_keyboard.push([
+    { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
+  ]);
+
+  await bot.sendMessage(chatId, commentText, { 
+    parse_mode: 'Markdown',
+    ...keyboard
+  });
+};
+
+// ========== ADD COMMENT ========== //
+const handleAddComment = async (chatId, confessionId, commentText) => {
+  const userId = chatId;
+  
+  if (!commentText || commentText.trim().length < 3) {
+    await bot.sendMessage(chatId, '❌ Comment too short. Minimum 3 characters.');
+    return;
+  }
+
+  if (!await checkCommentRateLimit(userId)) {
+    await bot.sendMessage(chatId, '❌ Too many comments. Please wait before adding another comment.');
+    return;
+  }
+
+  const commentData = await getComment(confessionId);
+  if (!commentData) {
+    await bot.sendMessage(chatId, '❌ Confession not found.');
+    return;
+  }
+
+  const sanitizedComment = sanitizeInput(commentText);
+
+  const newComment = {
+    id: `comment_${Date.now()}_${userId}`,
+    text: sanitizedComment.trim(),
+    userId: userId,
+    userName: (await getUser(userId)).username || 'Anonymous',
+    timestamp: new Date().toLocaleString(),
+    createdAt: new Date().toISOString()
+  };
+
+  const updatedComments = [...(commentData.comments || []), newComment];
+  await updateComment(confessionId, {
+    ...commentData,
+    comments: updatedComments,
+    totalComments: (commentData.totalComments || 0) + 1
+  });
+
+  // Update confession total comments
+  await updateConfession(confessionId, {
+    totalComments: admin.firestore.FieldValue.increment(1)
+  });
+
+  await recordComment(userId);
+
+  const user = await getUser(userId);
+  await updateUser(userId, {
+    reputation: admin.firestore.FieldValue.increment(5)
+  });
+
+  await bot.sendMessage(chatId, '✅ Comment added successfully!');
+  
+  // Get confession author and send notification if enabled
+  const confession = await getConfession(confessionId);
+  if (confession && confession.userId !== userId) {
+    await sendNotification(confession.userId,
+      `💬 *New Comment on Your Confession*\n\nConfession #${confession.confessionNumber} has a new comment!\n\n"${sanitizedComment.substring(0, 50)}${sanitizedComment.length > 50 ? '...' : ''}"`,
+      'newComment'
+    );
+  }
+  
+  await handleViewComments(chatId, confessionId);
+};
+// ========== ADMIN COMMANDS ========== //
+const handleAdmin = async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+
+  if (!isAdmin(userId)) {
+    await bot.sendMessage(chatId, '❌ Access denied. Admin only command.');
+    return;
+  }
+
+  const usersSnapshot = await db.collection('users').get();
+  const confessionsSnapshot = await db.collection('confessions').get();
+
+  const totalUsers = usersSnapshot.size;
+  const totalConfessions = confessionsSnapshot.size;
+  const pendingConfessions = (await db.collection('confessions').where('status', '==', 'pending').get()).size;
+  const approvedConfessions = (await db.collection('confessions').where('status', '==', 'approved').get()).size;
+  const rejectedConfessions = (await db.collection('confessions').where('status', '==', 'rejected').get()).size;
+
+  const text = `🔐 *Admin Dashboard*\n\n`;
+  const usersStat = `**Total Users:** ${totalUsers}\n`;
+  const confessionsStat = `**Pending Confessions:** ${pendingConfessions}\n`;
+  const approvedStat = `**Approved Confessions:** ${approvedConfessions}\n`;
+  const rejectedStat = `**Rejected Confessions:** ${rejectedConfessions}\n`;
+
+  const fullText = text + usersStat + confessionsStat + approvedStat + rejectedStat;
+
+  const keyboard = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '👥 Manage Users', callback_data: 'manage_users' },
+          { text: '📝 Review Confessions', callback_data: 'review_confessions' }
+        ],
+        [
+          { text: '📊 Bot Statistics', callback_data: 'bot_stats' },
+          { text: '❌ Block User', callback_data: 'block_user' }
+        ],
+        [
+          { text: '✉️ Message User', callback_data: 'message_user' },
+          { text: '📢 Broadcast', callback_data: 'broadcast_message' }
+        ],
+        [
+          { text: '🔙 Main Menu', callback_data: 'back_to_menu' }
+        ]
+      ]
+    }
+  };
+
+  await bot.sendMessage(chatId, fullText, { 
+    parse_mode: 'Markdown',
+    ...keyboard
+  });
+};
+
+// ========== ADMIN CONFIRMATION HANDLERS ========== //
+const handleApproveConfession = async (chatId, userId, confessionId, callbackQueryId) => {
+  if (!isAdmin(userId)) {
+    await bot.answerCallbackQuery(callbackQueryId, { text: '❌ Access denied' });
+    return;
+  }
+
+  const confession = await getConfession(confessionId);
+  if (!confession) {
+    await bot.answerCallbackQuery(callbackQueryId, { text: '❌ Confession not found' });
+    return;
+  }
+
+  try {
+    await updateConfession(confessionId, {
+      status: 'approved',
+      approvedAt: new Date().toISOString()
+    });
+
+    // Update user reputation
+    await updateUser(confession.userId, {
+      reputation: admin.firestore.FieldValue.increment(10)
+    });
+
+    // Post to channel
+    await postToChannel(confession.text, confession.confessionNumber, confessionId);
+    
+    // Notify user
+    await notifyUser(confession.userId, confession.confessionNumber, 'approved');
+
+    await bot.answerCallbackQuery(callbackQueryId, { text: '✅ Confession approved!' });
+    
+    // Send success message
+    await bot.sendMessage(chatId, 
+      `✅ *Confession #${confession.confessionNumber} Approved!*\n\nPosted to channel successfully.`
+    );
+
+  } catch (error) {
+    console.error('Approve confession error:', error);
+    await bot.answerCallbackQuery(callbackQueryId, { text: '❌ Error approving confession' });
+  }
+};
+
+const handleRejectConfession = async (chatId, userId, confessionId, callbackQueryId) => {
+  if (!isAdmin(userId)) {
+    await bot.answerCallbackQuery(callbackQueryId, { text: '❌ Access denied' });
+    return;
+  }
+
+  await setUserState(userId, {
+    state: 'awaiting_rejection_reason',
+    confessionId: confessionId
+  });
+
+  await bot.sendMessage(chatId, 
+    `❌ *Rejecting Confession*\n\nPlease provide rejection reason:`
+  );
+  
+  await bot.answerCallbackQuery(callbackQueryId, { text: 'Please provide rejection reason' });
+};
+
+const handleStartComment = async (chatId, confessionId, callbackQueryId) => {
+  await setUserState(chatId, {
+    state: 'awaiting_comment',
+    confessionId: confessionId
+  });
+
+  await bot.sendMessage(chatId,
+    `📝 *Add Comment*\n\nType your comment for this confession:`
+  );
+  
+  await bot.answerCallbackQuery(callbackQueryId);
+};
+
+// ========== USER PROFILE VIEWING ========== //
+const handleViewProfile = async (chatId, targetUserId, callbackQueryId) => {
+  const targetUser = await getUser(targetUserId);
+  const currentUser = await getUser(chatId);
+
+  if (!targetUser) {
+    await bot.answerCallbackQuery(callbackQueryId, { text: '❌ User not found' });
+    return;
+  }
+
+  const commentCount = await getCommentCount(targetUserId);
+  const levelInfo = getUserLevel(commentCount);
+
+  const profileText = `👤 *Profile*\n\n`;
+  const username = `**Display Name:** ${targetUser.username}\n`;
+  const level = `**Level:** ${levelInfo.symbol} ${levelInfo.name} (${commentCount} comments)\n`;
+  const bio = targetUser.bio ? `**Bio:** ${targetUser.bio}\n` : `**Bio:** No bio\n`;
+  const followers = `**Followers:** ${targetUser.followers?.length || 0}\n`;
+  const following = `**Following:** ${targetUser.following?.length || 0}\n`;
+  const confessions = `**Confessions:** ${targetUser.totalConfessions || 0}\n`;
+  const reputation = `**Reputation:** ${targetUser.reputation || 0}⭐\n`;
+  const achievements = `**Achievements:** ${targetUser.achievements?.length || 0}\n`;
+  const joinDate = `**Member Since:** ${new Date(targetUser.joinedAt).toLocaleDateString()}\n`;
+
+  const fullText = profileText + username + level + bio + followers + following + confessions + reputation + achievements + joinDate;
+
+  const isFollowing = (currentUser?.following || []).includes(targetUserId);
+  
+  const keyboard = [
+    [isFollowing 
+      ? { text: '✅ Following', callback_data: `unfollow_${targetUserId}` }
+      : { text: '➕ Follow', callback_data: `follow_${targetUserId}` }
+    ],
+    [{ text: '🔙 Back to Menu', callback_data: 'back_to_menu' }]
+  ];
+
+  await bot.sendMessage(chatId, fullText, {
+    parse_mode: 'Markdown',
+    reply_markup: { inline_keyboard: keyboard }
+  });
+  
+  await bot.answerCallbackQuery(callbackQueryId);
+};
+
+// ========== MANAGE USERS (ADMIN) ========== //
+const handleManageUsers = async (chatId, userId) => {
+  if (!isAdmin(userId)) {
+    await bot.sendMessage(chatId, '❌ Access denied');
+    return;
+  }
+
+  const usersSnapshot = await db.collection('users').limit(10).get();
+  
+  let userText = `👥 *Manage Users*\n\nTotal Users: ${usersSnapshot.size}\n\n`;
+  const keyboard = [];
+  
+  usersSnapshot.forEach(doc => {
+    const userData = doc.data();
+    const username = userData.username || 'No username';
+    keyboard.push([
+      { text: `🔍 View ${username}`, callback_data: `view_user_${userData.telegramId}` }
+    ]);
+  });
+  
+  keyboard.push([{ text: '🔙 Admin Menu', callback_data: 'admin_menu' }]);
+
+  await bot.sendMessage(chatId, userText, { 
+    parse_mode: 'Markdown',
+    reply_markup: { inline_keyboard: keyboard }
+  });
+};
+
+// ========== REVIEW CONFESSIONS (ADMIN) ========== //
+const handleReviewConfessions = async (chatId, userId) => {
+  if (!isAdmin(userId)) {
+    await bot.sendMessage(chatId, '❌ Access denied');
+    return;
+  }
+
+  const confessionsSnapshot = await db.collection('confessions')
+    .where('status', '==', 'pending')
+    .orderBy('createdAt', 'asc')
+    .limit(10)
+    .get();
+
+  if (confessionsSnapshot.empty) {
+    await bot.sendMessage(chatId, 
+      `📝 *Pending Confessions*\n\nNo pending confessions to review.`
+    );
+    return;
+  }
+
+  let confessionsText = `📝 *Pending Confessions*\n\n`;
+
+  const confessionsList = [];
+  confessionsSnapshot.forEach(doc => {
+    confessionsList.push(doc.data());
+  });
+
+  for (const conf of confessionsList) {
+    const user = await getUser(conf.userId);
+    const username = user?.username ? `${user.username}` : `ID: ${conf.userId}`;
+    
+    confessionsText += `• From: ${username}\n`;
+    confessionsText += `  Confession: "${conf.text.substring(0, 50)}${conf.text.length > 50 ? '...' : ''}"\n\n`;
+  }
+
+  const keyboard = [];
+
+  for (const conf of confessionsList) {
+    keyboard.push([
+      { text: `✅ Approve #${conf.confessionNumber}`, callback_data: `approve_${conf.confessionId}` },
+      { text: `❌ Reject #${conf.confessionNumber}`, callback_data: `reject_${conf.confessionId}` }
+    ]);
+  }
+
+  keyboard.push([{ text: '🔙 Admin Menu', callback_data: 'admin_menu' }]);
+
+  await bot.sendMessage(chatId, confessionsText, { 
+    parse_mode: 'Markdown',
+    reply_markup: { inline_keyboard: keyboard }
+  });
+};
+
+// ========== BOT STATISTICS (ADMIN) ========== //
+const handleBotStats = async (chatId, userId) => {
+  if (!isAdmin(userId)) {
+    await bot.sendMessage(chatId, '❌ Access denied');
+    return;
+  }
+
+  const usersSnapshot = await db.collection('users').get();
+  const confessionsSnapshot = await db.collection('confessions').get();
+  const commentsSnapshot = await db.collection('comments').get();
+
+  const totalUsers = usersSnapshot.size;
+  const totalConfessions = confessionsSnapshot.size;
+  const pendingConfessions = (await db.collection('confessions').where('status', '==', 'pending').get()).size;
+  const approvedConfessions = (await db.collection('confessions').where('status', '==', 'approved').get()).size;
+  const rejectedConfessions = (await db.collection('confessions').where('status', '==', 'rejected').get()).size;
+  
+  let totalComments = 0;
+  commentsSnapshot.forEach(doc => {
+    const data = doc.data();
+    totalComments += data.comments?.length || 0;
+  });
+
+  const statsText = `📊 *Bot Statistics*\n\n`;
+  const usersStat = `**Total Users:** ${totalUsers}\n`;
+  const confessionsStat = `**Total Confessions:** ${totalConfessions}\n`;
+  const pendingStat = `**Pending Confessions:** ${pendingConfessions}\n`;
+  const approvedStat = `**Approved Confessions:** ${approvedConfessions}\n`;
+  const rejectedStat = `**Rejected Confessions:** ${rejectedConfessions}\n`;
+  const commentsStat = `**Total Comments:** ${totalComments}\n`;
+
+  const fullText = statsText + usersStat + confessionsStat + pendingStat + approvedStat + rejectedStat + commentsStat;
+
+  const keyboard = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '👥 Manage Users', callback_data: 'manage_users' },
+          { text: '📝 Review Confessions', callback_data: 'review_confessions' }
+        ],
+        [
+          { text: '🔙 Admin Menu', callback_data: 'admin_menu' }
+        ]
+      ]
+    }
+  };
+
+  await bot.sendMessage(chatId, fullText, { 
+    parse_mode: 'Markdown',
+    ...keyboard
+  });
+};
+
+// ========== BLOCK USER (ADMIN) ========== //
+const handleStartBlockUser = async (chatId, userId) => {
+  if (!isAdmin(userId)) {
+    await bot.sendMessage(chatId, '❌ Access denied');
+    return;
+  }
+
+  await setUserState(userId, {
+    state: 'awaiting_block_user',
+    originalChatId: chatId
+  });
+
+  await bot.sendMessage(chatId, 
+    `❌ *Block User*\n\nEnter user ID to block:`
+  );
+};
+
+// ========== TOGGLE BLOCK USER (ADMIN) ========== //
+const handleToggleBlockUser = async (chatId, adminId, targetUserId) => {
+  if (!isAdmin(adminId)) {
+    await bot.sendMessage(chatId, '❌ Access denied');
+    return;
+  }
+
+  const user = await getUser(targetUserId);
+  if (!user) {
+    await bot.sendMessage(chatId, '❌ User not found');
+    return;
+  }
+
+  const newStatus = !user.isActive;
+  await updateUser(targetUserId, { isActive: newStatus });
+
+  await bot.sendMessage(chatId, 
+    `✅ User ${user.username || targetUserId} has been ${newStatus ? 'unblocked' : 'blocked'}.`
+  );
+};
+
+// ========== VIEW USER DETAILS (ADMIN) ========== //
+const handleViewUser = async (chatId, adminId, targetUserId) => {
+  if (!isAdmin(adminId)) {
+    await bot.sendMessage(chatId, '❌ Access denied');
+    return;
+  }
+
+  const user = await getUser(targetUserId);
+  if (!user) {
+    await bot.sendMessage(chatId, '❌ User not found');
+    return;
+  }
+
+  const commentCount = await getCommentCount(targetUserId);
+  const levelInfo = getUserLevel(commentCount);
+
+  const text = `👤 *User Details*\n\n`;
+  const id = `**User ID:** ${user.telegramId}\n`;
+  const username = `**Username:** ${user.username}\n`;
+  const level = `**Level:** ${levelInfo.symbol} ${levelInfo.name} (${commentCount} comments)\n`;
+  const bio = user.bio ? `**Bio:** ${user.bio}\n` : '';
+  const followers = `**Followers:** ${user.followers?.length || 0}\n`;
+  const following = `**Following:** ${user.following?.length || 0}\n`;
+  const confessions = `**Confessions:** ${user.totalConfessions || 0}\n`;
+  const reputation = `**Reputation:** ${user.reputation || 0}\n`;
+  const achievements = `**Achievements:** ${user.achievements?.length || 0}\n`;
+  const status = `**Status:** ${user.isActive ? '✅ Active' : '❌ Blocked'}\n`;
+  const joinDate = `**Join Date:** ${new Date(user.joinedAt).toLocaleDateString()}\n`;
+
+  const fullText = text + id + username + level + bio + followers + following + confessions + reputation + achievements + status + joinDate;
+
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: user.isActive ? '❌ Block User' : '✅ Unblock User', callback_data: `toggle_block_${targetUserId}` }
+      ],
+      [
+        { text: '🔙 Back to Users', callback_data: 'manage_users' }
+      ]
+    ]
+  };
+
+  await bot.sendMessage(chatId, fullText, { 
+    parse_mode: 'Markdown',
+    reply_markup: keyboard
+  });
+};
+
+// ========== MESSAGE USER (ADMIN) ========== //
+const handleStartMessageUser = async (chatId, userId) => {
+  if (!isAdmin(userId)) {
+    await bot.sendMessage(chatId, '❌ Access denied');
+    return;
+  }
+
+  await setUserState(userId, {
+    state: 'awaiting_message_user',
+    originalChatId: chatId
+  });
+
+  await bot.sendMessage(chatId, 
+    `✉️ *Message User*\n\nEnter user ID to message:`
+  );
+};
+
+// ========== BROADCAST MESSAGE (ADMIN) ========== //
+const handleBroadcastMessage = async (chatId, userId) => {
+  if (!isAdmin(userId)) {
+    await bot.sendMessage(chatId, '❌ Access denied');
+    return;
+  }
+
+  await setUserState(userId, {
+    state: 'awaiting_broadcast',
+    originalChatId: chatId
+  });
+
+  await bot.sendMessage(chatId, 
+    `📢 *Broadcast Message*\n\nEnter your broadcast message:`
+  );
+};
 
   // ========== CALLBACK QUERY HANDLER ========== //
   const handleCallbackQuery = async (callbackQuery) => {
@@ -1199,12 +1553,17 @@ try {
     const chatId = message.chat.id;
 
     try {
+      console.log(`📨 Callback received: ${data} from user ${userId}`);
+
+      // Admin actions
       if (data.startsWith('approve_')) {
         const confessionId = data.replace('approve_', '');
         await handleApproveConfession(chatId, userId, confessionId, callbackQuery.id);
       } else if (data.startsWith('reject_')) {
         const confessionId = data.replace('reject_', '');
         await handleRejectConfession(chatId, userId, confessionId, callbackQuery.id);
+      
+      // Comment actions
       } else if (data.startsWith('add_comment_')) {
         const confessionId = data.replace('add_comment_', '');
         await handleStartComment(chatId, confessionId, callbackQuery.id);
@@ -1213,67 +1572,117 @@ try {
         const confessionId = parts[2];
         const page = parseInt(parts[3]);
         await handleViewComments(chatId, confessionId, page);
+        await bot.answerCallbackQuery(callbackQuery.id);
+      
+      // User profile actions
       } else if (data.startsWith('view_profile_')) {
         const targetUserId = parseInt(data.replace('view_profile_', ''));
         await handleViewProfile(chatId, targetUserId, callbackQuery.id);
       } else if (data.startsWith('follow_')) {
         const targetUserId = parseInt(data.replace('follow_', ''));
         await handleFollowUser(chatId, userId, targetUserId);
+        await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Followed user!' });
       } else if (data.startsWith('unfollow_')) {
         const targetUserId = parseInt(data.replace('unfollow_', ''));
         await handleUnfollowUser(chatId, userId, targetUserId);
+        await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Unfollowed user!' });
+      } else if (data.startsWith('follow_author_')) {
+        const confessionId = data.replace('follow_author_', '');
+        const confession = await getConfession(confessionId);
+        if (confession) {
+          await handleFollowUser(chatId, userId, confession.userId);
+          await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Followed author!' });
+        }
+      
+      // Admin user management
+      } else if (data.startsWith('view_user_')) {
+        const targetUserId = parseInt(data.replace('view_user_', ''));
+        await handleViewUser(chatId, userId, targetUserId);
+        await bot.answerCallbackQuery(callbackQuery.id);
+      } else if (data.startsWith('toggle_block_')) {
+        const targetUserId = parseInt(data.replace('toggle_block_', ''));
+        await handleToggleBlockUser(chatId, userId, targetUserId);
+        await bot.answerCallbackQuery(callbackQuery.id);
+      
+      // Main menu actions
       } else if (data === 'send_confession') {
         await handleSendConfession({ chat: { id: chatId }, from: { id: userId } });
+        await bot.answerCallbackQuery(callbackQuery.id);
       } else if (data === 'my_profile') {
         await handleMyProfile({ chat: { id: chatId }, from: { id: userId } });
+        await bot.answerCallbackQuery(callbackQuery.id);
       } else if (data === 'promote_bot') {
         await handlePromoteBot({ chat: { id: chatId }, from: { id: userId } });
+        await bot.answerCallbackQuery(callbackQuery.id);
       } else if (data === 'back_to_menu') {
         await showMainMenu(chatId);
-      } else if (data === 'manage_users') {
-        await handleManageUsers(chatId, userId);
-      } else if (data === 'review_confessions') {
-        await handleReviewConfessions(chatId, userId);
-      } else if (data === 'bot_stats') {
-        await handleBotStats(chatId, userId);
-      } else if (data === 'block_user') {
-        await handleStartBlockUser(chatId, userId);
-      } else if (data === 'admin_menu') {
-        await handleAdmin({ chat: { id: chatId }, from: { id: userId } });
+        await bot.answerCallbackQuery(callbackQuery.id);
+      
+      // Profile management
       } else if (data === 'set_username') {
         await handleStartSetUsername(chatId, userId);
+        await bot.answerCallbackQuery(callbackQuery.id);
       } else if (data === 'set_bio') {
         await handleStartSetBio(chatId, userId);
+        await bot.answerCallbackQuery(callbackQuery.id);
       } else if (data === 'show_followers') {
         await handleShowFollowers({ chat: { id: chatId }, from: { id: userId } });
+        await bot.answerCallbackQuery(callbackQuery.id);
       } else if (data === 'show_following') {
         await handleShowFollowing({ chat: { id: chatId }, from: { id: userId } });
-      } else if (data === 'view_achievements') {
-        await handleAchievements({ chat: { id: chatId }, from: { id: userId } });
-      } else if (data === 'browse_users') {
-        await handleBrowseUsers({ chat: { id: chatId }, from: { id: userId } });
+        await bot.answerCallbackQuery(callbackQuery.id);
       } else if (data === 'my_confessions') {
         await handleMyConfessions(chatId, userId);
+        await bot.answerCallbackQuery(callbackQuery.id);
+      
+      // Settings
       } else if (data === 'comment_settings') {
         await handleCommentSettings(chatId, userId);
-      } else if (data === 'view_rankings') {
-        await handleBestCommenters({ chat: { id: chatId }, from: { id: userId } });
-      } else if (data === 'view_my_rank') {
-        await handleViewMyRank(chatId, userId);
-      } else if (data === 'monitor_chats') {
-        await handleMonitorChats(chatId, userId);
-      } else if (data === 'add_admin') {
-        await handleAddAdmin(chatId, userId);
-      } else if (data === 'toggle_maintenance') {
-        await handleToggleMaintenance(chatId, userId);
-      } else if (data === 'message_user') {
-        await handleMessageUser(chatId, userId);
-      } else if (data === 'broadcast_message') {
-        await handleBroadcastMessage(chatId, userId);
-      } else if (data === 'bot_settings') {
-        await handleBotSettings(chatId, userId);
+        await bot.answerCallbackQuery(callbackQuery.id);
       } else if (data === 'notification_settings') {
         await handleNotificationSettings(chatId, userId);
+        await bot.answerCallbackQuery(callbackQuery.id);
+      
+      // Rankings and achievements
+      } else if (data === 'view_rankings') {
+        await handleBestCommenters({ chat: { id: chatId }, from: { id: userId } });
+        await bot.answerCallbackQuery(callbackQuery.id);
+      } else if (data === 'view_my_rank') {
+        await handleViewMyRank(chatId, userId);
+        await bot.answerCallbackQuery(callbackQuery.id);
+      } else if (data === 'view_achievements') {
+        await handleAchievements({ chat: { id: chatId }, from: { id: userId } });
+        await bot.answerCallbackQuery(callbackQuery.id);
+      
+      // Browse users
+      } else if (data === 'browse_users') {
+        await handleBrowseUsers({ chat: { id: chatId }, from: { id: userId } });
+        await bot.answerCallbackQuery(callbackQuery.id);
+      
+      // Admin panel
+      } else if (data === 'admin_menu') {
+        await handleAdmin({ chat: { id: chatId }, from: { id: userId } });
+        await bot.answerCallbackQuery(callbackQuery.id);
+      } else if (data === 'manage_users') {
+        await handleManageUsers(chatId, userId);
+        await bot.answerCallbackQuery(callbackQuery.id);
+      } else if (data === 'review_confessions') {
+        await handleReviewConfessions(chatId, userId);
+        await bot.answerCallbackQuery(callbackQuery.id);
+      } else if (data === 'bot_stats') {
+        await handleBotStats(chatId, userId);
+        await bot.answerCallbackQuery(callbackQuery.id);
+      } else if (data === 'block_user') {
+        await handleStartBlockUser(chatId, userId);
+        await bot.answerCallbackQuery(callbackQuery.id);
+      } else if (data === 'message_user') {
+        await handleStartMessageUser(chatId, userId);
+        await bot.answerCallbackQuery(callbackQuery.id);
+      } else if (data === 'broadcast_message') {
+        await handleBroadcastMessage(chatId, userId);
+        await bot.answerCallbackQuery(callbackQuery.id);
+      
+      // Notification settings
       } else if (data === 'toggle_follower_notif') {
         const newState = await toggleNotification(userId, 'newFollower');
         await bot.answerCallbackQuery(callbackQuery.id, { text: `New Followers: ${newState ? 'ON' : 'OFF'}` });
@@ -1291,807 +1700,39 @@ try {
         await bot.answerCallbackQuery(callbackQuery.id, { text: `Direct Messages: ${newState ? 'ON' : 'OFF'}` });
         await handleNotificationSettings(chatId, userId);
       } else if (data === 'save_notifications') {
-        await bot.answerCallbackQuery(callbackQuery.id, { text: 'Settings saved!' });
-      } else if (data === 'settings_menu') {
-        await handleSettings({ chat: { id: chatId }, from: { id: userId } });
+        await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Settings saved!' });
+      
+      // Comment settings
+      } else if (data === 'comment_everyone') {
+        await updateUser(userId, { 'commentSettings.allowComments': 'everyone' });
+        await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Comments set to Everyone' });
+        await handleCommentSettings(chatId, userId);
+      } else if (data === 'comment_followers') {
+        await updateUser(userId, { 'commentSettings.allowComments': 'followers' });
+        await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Comments set to Followers Only' });
+        await handleCommentSettings(chatId, userId);
+      } else if (data === 'comment_anon') {
+        const user = await getUser(userId);
+        const current = user.commentSettings?.allowAnonymous ?? true;
+        await updateUser(userId, { 'commentSettings.allowAnonymous': !current });
+        await bot.answerCallbackQuery(callbackQuery.id, { text: `✅ Anonymous comments ${!current ? 'enabled' : 'disabled'}` });
+        await handleCommentSettings(chatId, userId);
+      } else if (data === 'comment_approve') {
+        const user = await getUser(userId);
+        const current = user.commentSettings?.requireApproval ?? false;
+        await updateUser(userId, { 'commentSettings.requireApproval': !current });
+        await bot.answerCallbackQuery(callbackQuery.id, { text: `✅ Comment approval ${!current ? 'enabled' : 'disabled'}` });
+        await handleCommentSettings(chatId, userId);
+      
+      // Default case - answer callback to remove loading state
+      } else {
+        await bot.answerCallbackQuery(callbackQuery.id);
       }
 
-      await bot.answerCallbackQuery(callbackQuery.id);
     } catch (error) {
       console.error('Callback error:', error);
       await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Error processing request' });
     }
-  };
-
-  // ========== ADMIN CONFIRMATION HANDLERS ========== //
-  const handleApproveConfession = async (chatId, userId, confessionId, callbackQueryId) => {
-    if (!isAdmin(userId)) {
-      await bot.answerCallbackQuery(callbackQueryId, { text: '❌ Access denied' });
-      return;
-    }
-
-    const confession = await getConfession(confessionId);
-    if (!confession) {
-      await bot.answerCallbackQuery(callbackQueryId, { text: '❌ Confession not found' });
-      return;
-    }
-
-    try {
-      await updateConfession(confessionId, {
-        status: 'approved',
-        approvedAt: new Date().toISOString()
-      });
-
-      // Update user reputation
-      await updateUser(confession.userId, {
-        reputation: admin.firestore.FieldValue.increment(10)
-      });
-
-      // Post to channel
-      await postToChannel(confession.text, confession.confessionNumber, confessionId);
-      
-      // Notify user
-      await notifyUser(confession.userId, confession.confessionNumber, 'approved');
-
-      await bot.answerCallbackQuery(callbackQueryId, { text: '✅ Confession approved!' });
-      
-      // Send success message instead of editing
-      await bot.sendMessage(chatId, 
-        `✅ *Confession #${confession.confessionNumber} Approved!*\n\nPosted to channel successfully.`
-      );
-
-    } catch (error) {
-      console.error('Approve confession error:', error);
-      await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Error approving confession' });
-    }
-  };
-
-  const handleRejectConfession = async (chatId, userId, confessionId, callbackQueryId) => {
-    if (!isAdmin(userId)) {
-      await bot.answerCallbackQuery(callbackQueryId, { text: '❌ Access denied' });
-      return;
-    }
-
-    await setUserState(userId, {
-      state: 'awaiting_rejection_reason',
-      confessionId: confessionId,
-      originalCallbackQueryId: callbackQueryId
-    });
-
-    await bot.editMessageText(
-      `❌ *Rejecting Confession*\n\nPlease provide rejection reason:`,
-      { 
-        chat_id: chatId,
-        message_id: message.message_id,
-        parse_mode: 'Markdown'
-      }
-    );
-  };
-
-  const handleStartComment = async (chatId, confessionId, callbackQueryId) => {
-    await setUserState(chatId, {
-      state: 'awaiting_comment',
-      confessionId: confessionId
-    });
-
-    await bot.editMessageText(
-      `📝 *Add Comment*\n\nType your comment for this confession:`,
-      { 
-        chat_id: chatId,
-        message_id: message.message_id,
-        parse_mode: 'Markdown'
-      }
-    );
-  };
-
-  const handleViewProfile = async (chatId, targetUserId, callbackQueryId) => {
-    const targetUser = await getUser(targetUserId);
-    const currentUser = await getUser(chatId);
-
-    if (!targetUser) {
-      await bot.answerCallbackQuery(callbackQueryId, { text: '❌ User not found' });
-      return;
-    }
-
-    const commentCount = await getCommentCount(targetUserId);
-    const levelInfo = getUserLevel(commentCount);
-
-    const profileText = `👤 *Profile*\n\n`;
-    const username = targetUser.username ? `**Username:** ${targetUser.username}\n` : '';
-    const level = `**Level:** ${levelInfo.symbol} ${levelInfo.name} (${commentCount} comments)\n`;
-    const bio = targetUser.bio ? `**Bio:** ${targetUser.bio}\n` : `**Bio:** No bio\n`;
-    const followers = `**Followers:** ${targetUser.followers?.length || 0}\n`;
-    const following = `**Following:** ${targetUser.following?.length || 0}\n`;
-    const confessions = `**Confessions:** ${targetUser.totalConfessions || 0}\n`;
-    const reputation = `**Reputation:** ${targetUser.reputation || 0}⭐\n`;
-    const achievements = `**Achievements:** ${targetUser.achievements?.length || 0}\n`;
-    const joinDate = `**Member Since:** ${new Date(targetUser.joinedAt).toLocaleDateString()}\n`;
-
-    const fullText = profileText + username + level + bio + followers + following + confessions + reputation + achievements + joinDate;
-
-    const isFollowing = (currentUser?.following || []).includes(targetUserId);
-    
-    const keyboard = [
-      [isFollowing 
-        ? { text: '✅ Following', callback_data: `unfollow_${targetUserId}` }
-        : { text: '➕ Follow', callback_data: `follow_${targetUserId}` }
-      ]
-    ];
-    
-    keyboard.push([{ text: '💬 Message', callback_data: `message_user_${targetUserId}` }]);
-    keyboard.push([{ text: '🔙 Back to Menu', callback_data: 'back_to_menu' }]);
-
-    try {
-      await bot.editMessageText(fullText, { 
-        chat_id: chatId,
-        message_id: message.message_id,
-        parse_mode: 'Markdown',
-        reply_markup: { inline_keyboard: keyboard }
-      });
-    } catch (error) {
-      await bot.sendMessage(chatId, fullText, {
-        parse_mode: 'Markdown',
-        reply_markup: { inline_keyboard: keyboard }
-      });
-    }
-  };
-
-  // ========== MANAGE USERS (ADMIN) ========== //
-  const handleManageUsers = async (chatId, userId) => {
-    if (!isAdmin(userId)) {
-      await bot.sendMessage(chatId, '❌ Access denied');
-      return;
-    }
-
-    const usersSnapshot = await db.collection('users').limit(10).get();
-    
-    let userText = `👥 *Manage Users*\n\nTotal Users: ${usersSnapshot.size}\n\n`;
-    const keyboard = [];
-    
-    usersSnapshot.forEach(doc => {
-      const userData = doc.data();
-      const username = userData.username || 'No username';
-      keyboard.push([
-        { text: `🔍 View ${username}`, callback_data: `view_user_${userData.telegramId}` }
-      ]);
-    });
-    
-    keyboard.push([{ text: '🔙 Admin Menu', callback_data: 'admin_menu' }]);
-
-    await bot.sendMessage(chatId, userText, { 
-      parse_mode: 'Markdown',
-      reply_markup: { inline_keyboard: keyboard }
-    });
-  };
-
-  // ========== REVIEW CONFESSIONS (ADMIN) ========== //
-  const handleReviewConfessions = async (chatId, userId) => {
-    if (!isAdmin(userId)) {
-      await bot.sendMessage(chatId, '❌ Access denied');
-      return;
-    }
-
-    const confessionsSnapshot = await db.collection('confessions')
-      .where('status', '==', 'pending')
-      .orderBy('createdAt', 'asc')
-      .limit(10)
-      .get();
-
-    if (confessionsSnapshot.empty) {
-      await bot.sendMessage(chatId, 
-        `📝 *Pending Confessions*\n\nNo pending confessions to review.`
-      );
-      return;
-    }
-
-    let confessionsText = `📝 *Pending Confessions*\n\n`;
-
-    const confessionsList = [];
-    confessionsSnapshot.forEach(doc => {
-      confessionsList.push(doc.data());
-    });
-
-    for (const conf of confessionsList) {
-      const user = await getUser(conf.userId);
-      const username = user?.username ? `${user.username}` : `ID: ${conf.userId}`;
-      
-      confessionsText += `• From: ${username}\n`;
-      confessionsText += `  Confession: "${conf.text.substring(0, 50)}${conf.text.length > 50 ? '...' : ''}"\n\n`;
-    }
-
-    const keyboard = [];
-
-    for (const conf of confessionsList) {
-      keyboard.push([
-        { text: `✅ Approve #${conf.confessionNumber}`, callback_data: `approve_${conf.confessionId}` },
-        { text: `❌ Reject #${conf.confessionNumber}`, callback_data: `reject_${conf.confessionId}` }
-      ]);
-    }
-
-    keyboard.push([{ text: '🔙 Admin Menu', callback_data: 'admin_menu' }]);
-
-    await bot.sendMessage(chatId, confessionsText, { 
-      parse_mode: 'Markdown',
-      reply_markup: { inline_keyboard: keyboard }
-    });
-  };
-
-  // ========== ADDITIONAL ADMIN HANDLERS ========== //
-  const handleBotStats = async (chatId, userId) => {
-    if (!isAdmin(userId)) {
-      await bot.sendMessage(chatId, '❌ Access denied');
-      return;
-    }
-
-    const usersSnapshot = await db.collection('users').get();
-    const confessionsSnapshot = await db.collection('confessions').get();
-    const commentsSnapshot = await db.collection('comments').get();
-
-    const totalUsers = usersSnapshot.size;
-    const totalConfessions = confessionsSnapshot.size;
-    const pendingConfessions = (await db.collection('confessions').where('status', '==', 'pending').get()).size;
-    const approvedConfessions = (await db.collection('confessions').where('status', '==', 'approved').get()).size;
-    const rejectedConfessions = (await db.collection('confessions').where('status', '==', 'rejected').get()).size;
-    
-    let totalComments = 0;
-    commentsSnapshot.forEach(doc => {
-      const data = doc.data();
-      totalComments += data.comments?.length || 0;
-    });
-
-    const statsText = `📊 *Bot Statistics*\n\n`;
-    const usersStat = `**Total Users:** ${totalUsers}\n`;
-    const confessionsStat = `**Total Confessions:** ${totalConfessions}\n`;
-    const pendingStat = `**Pending Confessions:** ${pendingConfessions}\n`;
-    const approvedStat = `**Approved Confessions:** ${approvedConfessions}\n`;
-    const rejectedStat = `**Rejected Confessions:** ${rejectedConfessions}\n`;
-    const commentsStat = `**Total Comments:** ${totalComments}\n`;
-
-    const fullText = statsText + usersStat + confessionsStat + pendingStat + approvedStat + rejectedStat + commentsStat;
-
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '👥 Manage Users', callback_data: 'manage_users' },
-            { text: '📝 Review Confessions', callback_data: 'review_confessions' }
-          ],
-          [
-            { text: '🔙 Admin Menu', callback_data: 'admin_menu' }
-          ]
-        ]
-      }
-    };
-
-    await bot.sendMessage(chatId, fullText, { 
-      parse_mode: 'Markdown',
-      ...keyboard
-    });
-  };
-
-  const handleStartBlockUser = async (chatId, userId) => {
-    if (!isAdmin(userId)) {
-      await bot.sendMessage(chatId, '❌ Access denied');
-      return;
-    }
-
-    await bot.sendMessage(chatId, 
-      `❌ *Block User*\n\nEnter user ID to block:`
-    );
-  };
-
-  // ========== PROFILE MANAGEMENT ========== //
-  const handleStartSetUsername = async (chatId, userId) => {
-    await setUserState(userId, {
-      state: 'awaiting_username',
-      originalChatId: chatId
-    });
-
-    await bot.sendMessage(chatId, 
-      `📝 *Set Username*\n\nEnter your desired display name (without $ symbol):\n\nMust be 3-20 characters, letters/numbers/underscores only.`
-    );
-  };
-
-  const handleStartSetBio = async (chatId, userId) => {
-    await setUserState(userId, {
-      state: 'awaiting_bio',
-      originalChatId: chatId
-    });
-
-    await bot.sendMessage(chatId, 
-      `📝 *Set Bio*\n\nEnter your bio (max 100 characters):`
-    );
-  };
-
-  const handleShowFollowers = async (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const user = await getUser(userId);
-
-    const followers = user.followers || [];
-    
-    if (followers.length === 0) {
-      await bot.sendMessage(chatId, 
-        `👥 *Your Followers*\n\nNo followers yet.`
-      );
-      return;
-    }
-
-    let followersText = `👥 *Your Followers (${followers.length})*\n\n`;
-    
-    for (const followerId of followers) {
-      const follower = await getUser(followerId);
-      const name = follower?.username || 'Anonymous';
-      const commentCount = await getCommentCount(followerId);
-      const levelInfo = getUserLevel(commentCount);
-      followersText += `• ${levelInfo.symbol} ${name}\n`;
-    }
-
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '🔍 Browse Users', callback_data: 'browse_users' },
-            { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
-          ]
-        ]
-      }
-    };
-
-    await bot.sendMessage(chatId, followersText, { 
-      parse_mode: 'Markdown',
-      ...keyboard
-    });
-  };
-
-  const handleShowFollowing = async (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const user = await getUser(userId);
-
-    const following = user.following || [];
-    
-    if (following.length === 0) {
-      await bot.sendMessage(chatId, 
-        `👥 *You're Following*\n\nNot following anyone yet.`
-      );
-      return;
-    }
-
-    let followingText = `👥 *You're Following (${following.length})*\n\n`;
-    
-    for (const followingId of following) {
-      const followee = await getUser(followingId);
-      const name = followee?.username || 'Anonymous';
-      const commentCount = await getCommentCount(followingId);
-      const levelInfo = getUserLevel(commentCount);
-      followingText += `• ${levelInfo.symbol} ${name}\n`;
-    }
-
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '🔍 Browse Users', callback_data: 'browse_users' },
-            { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
-          ]
-        ]
-      }
-    };
-
-    await bot.sendMessage(chatId, followingText, { 
-      parse_mode: 'Markdown',
-      ...keyboard
-    });
-  };
-
-  // ========== USER MANAGEMENT ========== //
-  const handleViewUser = async (chatId, adminId, targetUserId) => {
-    if (!isAdmin(adminId)) {
-      await bot.sendMessage(chatId, '❌ Access denied');
-      return;
-    }
-
-    const user = await getUser(targetUserId);
-    if (!user) {
-      await bot.sendMessage(chatId, '❌ User not found');
-      return;
-    }
-
-    const commentCount = await getCommentCount(targetUserId);
-    const levelInfo = getUserLevel(commentCount);
-
-    const text = `👤 *User Details*\n\n`;
-    const id = `**User ID:** ${user.telegramId}\n`;
-    const username = user.username ? `**Username:** ${user.username}\n` : '';
-    const level = `**Level:** ${levelInfo.symbol} ${levelInfo.name} (${commentCount} comments)\n`;
-    const bio = user.bio ? `**Bio:** ${user.bio}\n` : '';
-    const followers = `**Followers:** ${user.followers?.length || 0}\n`;
-    const following = `**Following:** ${user.following?.length || 0}\n`;
-    const confessions = `**Confessions:** ${user.totalConfessions || 0}\n`;
-    const reputation = `**Reputation:** ${user.reputation || 0}\n`;
-    const achievements = `**Achievements:** ${user.achievements?.length || 0}\n`;
-    const status = `**Status:** ${user.isActive ? '✅ Active' : '❌ Blocked'}\n`;
-    const joinDate = `**Join Date:** ${new Date(user.joinedAt).toLocaleDateString()}\n`;
-
-    const fullText = text + id + username + level + bio + followers + following + confessions + reputation + achievements + status + joinDate;
-
-    const keyboard = {
-      inline_keyboard: [
-        [
-          { text: '✉️ Message User', callback_data: `message_user_${targetUserId}` },
-          { text: user.isActive ? '❌ Block User' : '✅ Unblock User', callback_data: `toggle_block_${targetUserId}` }
-        ],
-        [
-          { text: '👥 View Confessions', callback_data: `view_user_confessions_${targetUserId}` },
-          { text: '🔙 Back to Users', callback_data: 'manage_users' }
-        ]
-      ]
-    };
-
-    await bot.sendMessage(chatId, fullText, { 
-      parse_mode: 'Markdown',
-      reply_markup: keyboard
-    });
-  };
-
-  const handleFollowUser = async (chatId, userId, targetUserId) => {
-    const currentUser = await getUser(userId);
-    const targetUser = await getUser(targetUserId);
-
-    if (!currentUser || !targetUser) {
-      await bot.sendMessage(chatId, '❌ User not found');
-      return;
-    }
-
-    if (userId === targetUserId) {
-      await bot.sendMessage(chatId, '❌ You cannot follow yourself');
-      return;
-    }
-
-    const currentFollowing = [...(currentUser.following || []), targetUserId];
-    const targetFollowers = [...(targetUser.followers || []), userId];
-    
-    await updateUser(userId, { following: currentFollowing });
-    await updateUser(targetUserId, { followers: targetFollowers });
-
-    await bot.sendMessage(chatId, `✅ Following ${targetUser.username || 'User'}!`);
-
-    // Send notification to target user
-    await sendNotification(targetUserId, 
-      `🎉 *New Follower!*\n\n${currentUser.username || 'Someone'} is now following you!`, 
-      'newFollower'
-    );
-  };
-
-  const handleUnfollowUser = async (chatId, userId, targetUserId) => {
-    const currentUser = await getUser(userId);
-    const targetUser = await getUser(targetUserId);
-
-    if (!currentUser || !targetUser) {
-      await bot.sendMessage(chatId, '❌ User not found');
-      return;
-    }
-
-    const currentFollowing = (currentUser.following || []).filter(id => id !== targetUserId);
-    const targetFollowers = (targetUser.followers || []).filter(id => id !== userId);
-    
-    await updateUser(userId, { following: currentFollowing });
-    await updateUser(targetUserId, { followers: targetFollowers });
-
-    await bot.sendMessage(chatId, `❌ Unfollowed ${targetUser.username || 'User'}`);
-  };
-
-  // ========== NOTIFICATION SETTINGS ========== //
-  const handleNotificationSettings = async (chatId, userId) => {
-    const user = await getUser(userId);
-    const notifications = user.notifications || {
-      newFollower: true,
-      newComment: true,
-      newConfession: true,
-      directMessage: true
-    };
-    
-    let settingsText = `🔔 *Notification Settings*\n\n`;
-    settingsText += `New Followers: ${notifications.newFollower ? '✅' : '❌'}\n`;
-    settingsText += `New Comments: ${notifications.newComment ? '✅' : '❌'}\n`;
-    settingsText += `New Confessions: ${notifications.newConfession ? '✅' : '❌'}\n`;
-    settingsText += `Direct Messages: ${notifications.directMessage ? '✅' : '❌'}\n\n`;
-    settingsText += `Toggle to change settings:`;
-
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: notifications.newFollower ? '✅ New Followers' : '❌ New Followers', callback_data: 'toggle_follower_notif' },
-            { text: notifications.newComment ? '✅ New Comments' : '❌ New Comments', callback_data: 'toggle_comment_notif' }
-          ],
-          [
-            { text: notifications.newConfession ? '✅ New Confessions' : '❌ New Confessions', callback_data: 'toggle_confession_notif' },
-            { text: notifications.directMessage ? '✅ Direct Messages' : '❌ Direct Messages', callback_data: 'toggle_dm_notif' }
-          ],
-          [
-            { text: '💾 Save Settings', callback_data: 'save_notifications' },
-            { text: '🔙 Back to Settings', callback_data: 'settings_menu' }
-          ]
-        ]
-      }
-    };
-
-    await bot.sendMessage(chatId, settingsText, { 
-      parse_mode: 'Markdown',
-      ...keyboard
-    });
-  };
-
-  // ========== TOGGLE NOTIFICATIONS ========== //
-  const toggleNotification = async (userId, settingName) => {
-    const user = await getUser(userId);
-    const currentSetting = user.notifications?.[settingName] ?? true;
-    const newSetting = !currentSetting;
-    
-    await updateUser(userId, {
-      [`notifications.${settingName}`]: newSetting
-    });
-    
-    return newSetting;
-  };
-
-  // ========== HELP COMMAND ========== //
-  const handleHelp = async (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const isAdmin = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',').map(Number).includes(userId) : false;
-
-    let helpMessage = `ℹ️ *JU Confession Bot Help*\n\n` +
-      `*How to Confess:*\n` +
-      `1. Click "📝 Send Confession"\n` +
-      `2. Type your confession\n` +
-      `3. Wait for admin approval\n` +
-      `4. See it posted in the channel\n\n` +
-      `*Features:*\n` +
-      `• Anonymous confessions\n` +
-      `• User profiles with display names\n` +
-      `• Social features (follow/unfollow)\n` +
-      `• Reputation system\n` +
-      `• Achievements\n` +
-      `• User levels with symbols\n` +
-      `• Best commenters leaderboard\n` +
-      `• Promotion features\n\n` +
-      `*Commands:*\n` +
-      `/start - Start the bot\n` +
-      `/help - Show this help\n`;
-
-    if (isAdmin) {
-      helpMessage += `\n*⚡ Admin Commands:*\n` +
-        `/admin - Admin panel\n`;
-    }
-
-    await bot.sendMessage(chatId, helpMessage, { parse_mode: 'Markdown' });
-  };
-
-  // ========== SETTINGS COMMAND ========== //
-  const handleSettings = async (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    
-    await bot.sendMessage(chatId, 
-      `⚙️ *Settings*\n\n` +
-      `• Username: Set in profile\n` +
-      `• Bio: Set in profile\n` +
-      `• Achievement tracking\n` +
-      `• 🔔 Notification Settings\n\n` +
-      `Current features:`,
-      { 
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: '🔔 Notification Settings', callback_data: 'notification_settings' },
-              { text: '📝 Profile Settings', callback_data: 'profile_settings' }
-            ],
-            [
-              { text: '🔒 Privacy Settings', callback_data: 'privacy_settings' },
-              { text: '🏆 Achievement Settings', callback_data: 'achievement_settings' }
-            ],
-            [
-              { text: '🔍 Browse Settings', callback_data: 'browse_settings' },
-              { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
-            ]
-          ]
-        }
-      }
-    );
-  };
-
-  // ========== COMMENT SETTINGS ========== //
-  const handleCommentSettings = async (chatId, userId) => {
-    const user = await getUser(userId);
-    
-    const settings = user.commentSettings || {};
-    
-    let settingsText = `🔒 *Comment Settings*\n\n`;
-    settingsText += `Your confessions can receive comments:\n`;
-    settingsText += `• From Everyone: ${settings.allowComments === 'everyone' ? '✅' : '❌'}\n`;
-    settingsText += `• Only Followers: ${settings.allowComments === 'followers' ? '✅' : '❌'}\n`;
-    settingsText += `• Admin Only: ${settings.allowComments === 'admin' ? '✅' : '❌'}\n\n`;
-    settingsText += `Anonymous comments: ${settings.allowAnonymous ? '✅' : '❌'}\n`;
-    settingsText += `Comment approval: ${settings.requireApproval ? '✅ Manual Approval' : '❌ Disabled'}\n`;
-
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: settings.allowComments === 'everyone' ? '✅ From Everyone' : '❌ From Everyone', callback_data: 'comment_everyone' },
-            { text: settings.allowComments === 'followers' ? '✅ Only Followers' : '❌ Only Followers', callback_data: 'comment_followers' }
-          ],
-          [
-            { text: settings.allowAnonymous ? '✅ Anonymous' : '❌ Anonymous', callback_data: 'comment_anon' },
-            { text: settings.requireApproval ? '✅ Manual Approval' : '❌ Manual Approval', callback_data: 'comment_approve' }
-          ],
-          [
-            { text: '💾 Save Settings', callback_data: 'save_comment_settings' },
-            { text: '🔙 Back to Profile', callback_data: 'my_profile' }
-          ]
-        ]
-      }
-    };
-
-    await bot.sendMessage(chatId, settingsText, { 
-      parse_mode: 'Markdown',
-      ...keyboard
-    });
-  };
-
-  // ========== VIEW MY RANK ========== //
-  const handleViewMyRank = async (chatId, userId) => {
-    const commentCount = await getCommentCount(userId);
-    const levelInfo = getUserLevel(commentCount);
-
-    // Count all users' comments
-    const commentCounts = {};
-    const commentsSnapshot = await db.collection('comments').get();
-    
-    commentsSnapshot.forEach(doc => {
-      const data = doc.data();
-      if (data.comments) {
-        for (const comment of data.comments) {
-          const userId = comment.userId;
-          commentCounts[userId] = (commentCounts[userId] || 0) + 1;
-        }
-      }
-    });
-
-    const sortedUsers = Object.entries(commentCounts)
-      .sort((a, b) => b[1] - a[1])
-      .map(([id, count]) => ({ id: parseInt(id), count }));
-
-    const userRank = sortedUsers.findIndex(user => user.id === userId) + 1;
-
-    let rankText = `🏆 *Your Comment Rank*\n\n`;
-    rankText += `Level: ${levelInfo.symbol} ${levelInfo.name}\n`;
-    rankText += `Comments: ${commentCount}\n`;
-    rankText += `Rank: #${userRank} of ${sortedUsers.length} users\n\n`;
-    rankText += `Keep commenting to climb the leaderboard!`;
-
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '📝 Add Comment', callback_data: 'add_comment' },
-            { text: '🏆 View Rankings', callback_data: 'best_commenters' }
-          ],
-          [
-            { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
-          ]
-        ]
-      }
-    };
-
-    await bot.sendMessage(chatId, rankText, { 
-      parse_mode: 'Markdown',
-      ...keyboard
-    });
-  };
-
-  // ========== ADMIN MONITOR CHATS ========== //
-  const handleMonitorChats = async (chatId, userId) => {
-    if (!isAdmin(userId)) {
-      await bot.sendMessage(chatId, '❌ Access denied');
-      return;
-    }
-
-    let chatsText = `💬 *Monitor Private Chats*\n\n`;
-    chatsText += `Recent private messages:\n\n`;
-    chatsText += 'No recent chats to monitor.\n';
-
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '🔄 Refresh', callback_data: 'monitor_chats' },
-            { text: '🔍 Search User', callback_data: 'search_user' }
-          ],
-          [
-            { text: '🔙 Admin Menu', callback_data: 'admin_menu' }
-          ]
-        ]
-      }
-    };
-
-    await bot.sendMessage(chatId, chatsText, { 
-      parse_mode: 'Markdown',
-      ...keyboard
-    });
-  };
-
-  // ========== ADMIN ADD ADMIN ========== //
-  const handleAddAdmin = async (chatId, userId) => {
-    if (!isAdmin(userId)) {
-      await bot.sendMessage(chatId, '❌ Access denied');
-      return;
-    }
-
-    await bot.sendMessage(chatId, 
-      `👤 *Add New Admin*\n\nEnter user ID to make admin:\n(Use @userinfobot to get user ID)\n\nUser ID: ___________\n\nPermissions:\n✅ View Chats\n✅ Manage Users\n✅ Approve Confessions\n✅ Block Users\n✅ Add Admins\n✅ Maintenance Mode`
-    );
-  };
-
-  // ========== ADMIN MAINTENANCE MODE ========== //
-  const handleToggleMaintenance = async (chatId, userId) => {
-    if (!isAdmin(userId)) {
-      await bot.sendMessage(chatId, '❌ Access denied');
-      return;
-    }
-
-    const maintenanceDoc = await db.collection('system').doc('maintenance').get();
-    const currentMode = maintenanceDoc.exists ? maintenanceDoc.data().enabled : false;
-    const newMode = !currentMode;
-
-    await db.collection('system').doc('maintenance').set({
-      enabled: newMode,
-      updatedAt: new Date().toISOString()
-    });
-
-    await bot.sendMessage(chatId, 
-      `🔧 Maintenance Mode: ${newMode ? '✅ Enabled' : '❌ Disabled'}\n\nThe bot is now ${newMode ? 'under maintenance' : 'operational'}.`
-    );
-  };
-
-  // ========== ADMIN MESSAGE USER ========== //
-  const handleMessageUser = async (chatId, userId) => {
-    if (!isAdmin(userId)) {
-      await bot.sendMessage(chatId, '❌ Access denied');
-      return;
-    }
-
-    await bot.sendMessage(chatId, 
-      `✉️ *Message User*\n\nEnter user ID or username:\n\nUser ID: ___________\n\nMessage Type:\n• Private Message\n• Broadcast\n\nMessage Content:\nType your message here...`
-    );
-  };
-
-  // ========== ADMIN BROADCAST MESSAGE ========== //
-  const handleBroadcastMessage = async (chatId, userId) => {
-    if (!isAdmin(userId)) {
-      await bot.sendMessage(chatId, '❌ Access denied');
-      return;
-    }
-
-    await bot.sendMessage(chatId, 
-      `📢 *Broadcast Message*\n\nMessage Type:\n• To All Users\n• To Active Users\n• To Verified Users\n\nMessage Content:\nType your broadcast message...`
-    );
-  };
-
-  // ========== ADMIN BOT SETTINGS ========== //
-  const handleBotSettings = async (chatId, userId) => {
-    if (!isAdmin(userId)) {
-      await bot.sendMessage(chatId, '❌ Access denied');
-      return;
-    }
-
-    await bot.sendMessage(chatId, 
-      `⚙️ *Bot Settings*\n\n• Maintenance Mode\n• User Limits\n• Rate Limits\n• Channel Settings\n• Admin Permissions\n• Message Templates\n\nUse admin panel for configuration.`
-    );
   };
 
   // ========== MESSAGE HANDLER ========== //
@@ -2104,71 +1745,153 @@ try {
 
     const userState = await getUserState(userId);
     
-    if (userState && userState.state === 'awaiting_username') {
-      if (text.length < 3 || text.length > 20 || !/^[a-zA-Z0-9_]+$/.test(text)) {
-        await bot.sendMessage(chatId, '❌ Invalid username. Use 3-20 characters (letters, numbers, underscores only).');
-        return;
-      }
-
-      // Check if username already exists (excluding 'Anonymous')
-      if (text.toLowerCase() !== 'anonymous') {
-        const usersSnapshot = await db.collection('users').where('username', '==', text).limit(1).get();
-        if (!usersSnapshot.empty && usersSnapshot.docs[0].data().telegramId !== userId) {
-          await bot.sendMessage(chatId, '❌ Username already taken. Choose another one.');
+    // Handle user states
+    if (userState) {
+      if (userState.state === 'awaiting_username') {
+        if (text.length < 3 || text.length > 20 || !/^[a-zA-Z0-9_]+$/.test(text)) {
+          await bot.sendMessage(chatId, '❌ Invalid username. Use 3-20 characters (letters, numbers, underscores only).');
           return;
         }
-      }
 
-      await updateUser(userId, { username: text });
-      await clearUserState(userId);
-      
-      await bot.sendMessage(chatId, `✅ Display name updated to ${text}!`);
-      await showMainMenu(chatId);
-      return;
-    }
+        // Check if username already exists (excluding 'Anonymous')
+        if (text.toLowerCase() !== 'anonymous') {
+          const usersSnapshot = await db.collection('users').where('username', '==', text).limit(1).get();
+          if (!usersSnapshot.empty && usersSnapshot.docs[0].data().telegramId !== userId) {
+            await bot.sendMessage(chatId, '❌ Username already taken. Choose another one.');
+            return;
+          }
+        }
 
-    if (userState && userState.state === 'awaiting_confession') {
-      await handleConfessionSubmission(msg, text);
-      await clearUserState(userId);
-      return;
-    }
-
-    if (userState && userState.state === 'awaiting_comment') {
-      await handleAddComment(chatId, userState.confessionId, text);
-      await clearUserState(userId);
-      return;
-    }
-
-    if (userState && userState.state === 'awaiting_bio') {
-      if (text.length > 100) {
-        await bot.sendMessage(chatId, '❌ Bio too long. Maximum 100 characters.');
+        await updateUser(userId, { username: text });
+        await clearUserState(userId);
+        
+        await bot.sendMessage(chatId, `✅ Display name updated to ${text}!`);
+        await showMainMenu(chatId);
         return;
       }
 
-      await updateUser(userId, { bio: text });
-      await clearUserState(userId);
-      await bot.sendMessage(chatId, '✅ Bio updated successfully!');
-      return;
-    }
+      if (userState.state === 'awaiting_confession') {
+        await handleConfessionSubmission(msg, text);
+        await clearUserState(userId);
+        return;
+      }
 
-    if (userState && userState.state === 'awaiting_rejection_reason' && isAdmin(userId)) {
-      const confessionId = userState.confessionId;
-      const confession = await getConfession(confessionId);
-      
-      if (confession) {
-        await updateConfession(confessionId, {
-          status: 'rejected',
-          rejectionReason: text
+      if (userState.state === 'awaiting_comment') {
+        await handleAddComment(chatId, userState.confessionId, text);
+        await clearUserState(userId);
+        return;
+      }
+
+      if (userState.state === 'awaiting_bio') {
+        if (text.length > 100) {
+          await bot.sendMessage(chatId, '❌ Bio too long. Maximum 100 characters.');
+          return;
+        }
+
+        await updateUser(userId, { bio: text });
+        await clearUserState(userId);
+        await bot.sendMessage(chatId, '✅ Bio updated successfully!');
+        return;
+      }
+
+      if (userState.state === 'awaiting_rejection_reason' && isAdmin(userId)) {
+        const confessionId = userState.confessionId;
+        const confession = await getConfession(confessionId);
+        
+        if (confession) {
+          await updateConfession(confessionId, {
+            status: 'rejected',
+            rejectionReason: text
+          });
+
+          await notifyUser(confession.userId, confession.confessionNumber, 'rejected', text);
+          
+          await bot.sendMessage(chatId, `✅ Confession rejected.`);
+        }
+        await clearUserState(userId);
+        return;
+      }
+
+      if (userState.state === 'awaiting_block_user' && isAdmin(userId)) {
+        const targetUserId = parseInt(text);
+        if (isNaN(targetUserId)) {
+          await bot.sendMessage(chatId, '❌ Invalid user ID. Please enter a numeric user ID.');
+          return;
+        }
+
+        const user = await getUser(targetUserId);
+        if (!user) {
+          await bot.sendMessage(chatId, '❌ User not found.');
+          await clearUserState(userId);
+          return;
+        }
+
+        await updateUser(targetUserId, { isActive: false });
+        await clearUserState(userId);
+        await bot.sendMessage(chatId, `✅ User ${user.username || targetUserId} has been blocked.`);
+        return;
+      }
+
+      if (userState.state === 'awaiting_message_user' && isAdmin(userId)) {
+        const targetUserId = parseInt(text);
+        if (isNaN(targetUserId)) {
+          await bot.sendMessage(chatId, '❌ Invalid user ID. Please enter a numeric user ID.');
+          return;
+        }
+
+        await setUserState(userId, {
+          state: 'awaiting_message_content',
+          targetUserId: targetUserId
         });
 
-        await notifyUser(confession.userId, 0, 'rejected', text);
-        
-        await bot.sendMessage(chatId, `✅ Confession rejected.`);
+        await bot.sendMessage(chatId, `✉️ Now enter your message for user ${targetUserId}:`);
+        return;
       }
-      await clearUserState(userId);
-      return;
+
+      if (userState.state === 'awaiting_message_content' && isAdmin(userId)) {
+        const targetUserId = userState.targetUserId;
+        try {
+          await bot.sendMessage(targetUserId, 
+            `📨 *Message from Admin*\n\n${text}`
+          );
+          await bot.sendMessage(chatId, `✅ Message sent to user ${targetUserId}`);
+        } catch (error) {
+          await bot.sendMessage(chatId, `❌ Failed to send message to user ${targetUserId}`);
+        }
+        await clearUserState(userId);
+        return;
+      }
+
+      if (userState.state === 'awaiting_broadcast' && isAdmin(userId)) {
+        const usersSnapshot = await db.collection('users').get();
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const doc of usersSnapshot.docs) {
+          const user = doc.data();
+          if (user.isActive && user.telegramId) {
+            try {
+              await bot.sendMessage(user.telegramId, 
+                `📢 *Broadcast Message*\n\n${text}`
+              );
+              successCount++;
+            } catch (error) {
+              failCount++;
+            }
+          }
+        }
+
+        await clearUserState(userId);
+        await bot.sendMessage(chatId, 
+          `✅ Broadcast completed!\n\n` +
+          `✅ Success: ${successCount} users\n` +
+          `❌ Failed: ${failCount} users`
+        );
+        return;
+      }
     }
 
+    // Handle commands and menu buttons
     if (text.startsWith('/')) {
       switch (text) {
         case '/start':
@@ -2221,6 +1944,433 @@ try {
     }
   };
 
+  // ========== MISSING FUNCTION IMPLEMENTATIONS ========== //
+  
+  // ACHIEVEMENTS
+  const handleAchievements = async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const user = await getUser(userId);
+
+    const achievements = user.achievements || [];
+    
+    if (achievements.length === 0) {
+      await bot.sendMessage(chatId, 
+        `🏆 *Your Achievements*\n\nNo achievements yet. Keep using the bot to earn achievements!\n\nEarn achievements by:\n• Submitting confessions\n• Commenting on posts\n• Gaining followers\n• Building reputation`
+      );
+      return;
+    }
+
+    let achievementsText = `🏆 *Your Achievements*\n\n`;
+    
+    achievements.forEach((achievement, index) => {
+      achievementsText += `${index + 1}. ${achievement}\n`;
+    });
+
+    const keyboard = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '🔙 Back to Profile', callback_data: 'my_profile' }
+          ]
+        ]
+      }
+    };
+
+    await bot.sendMessage(chatId, achievementsText, { 
+      parse_mode: 'Markdown',
+      ...keyboard
+    });
+  };
+
+  // SETTINGS
+  const handleSettings = async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    
+    await bot.sendMessage(chatId, 
+      `⚙️ *Settings*\n\nManage your bot preferences and privacy settings.`,
+      { 
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '🔔 Notifications', callback_data: 'notification_settings' },
+              { text: '📝 Profile', callback_data: 'my_profile' }
+            ],
+            [
+              { text: '🔒 Comments', callback_data: 'comment_settings' },
+              { text: '🏆 Achievements', callback_data: 'view_achievements' }
+            ],
+            [
+              { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
+            ]
+          ]
+        }
+      }
+    );
+  };
+
+  // FOLLOW/UNFOLLOW FUNCTIONS
+  const handleFollowUser = async (chatId, userId, targetUserId) => {
+    const currentUser = await getUser(userId);
+    const targetUser = await getUser(targetUserId);
+
+    if (!currentUser || !targetUser) {
+      await bot.sendMessage(chatId, '❌ User not found');
+      return;
+    }
+
+    if (userId === targetUserId) {
+      await bot.sendMessage(chatId, '❌ You cannot follow yourself');
+      return;
+    }
+
+    // Check if already following
+    if ((currentUser.following || []).includes(targetUserId)) {
+      await bot.sendMessage(chatId, `❌ You are already following ${targetUser.username || 'this user'}!`);
+      return;
+    }
+
+    const currentFollowing = [...(currentUser.following || []), targetUserId];
+    const targetFollowers = [...(targetUser.followers || []), userId];
+    
+    await updateUser(userId, { following: currentFollowing });
+    await updateUser(targetUserId, { followers: targetFollowers });
+
+    await bot.sendMessage(chatId, `✅ Following ${targetUser.username || 'User'}!`);
+
+    // Send notification to target user
+    await sendNotification(targetUserId, 
+      `🎉 *New Follower!*\n\n${currentUser.username || 'Someone'} is now following you!`, 
+      'newFollower'
+    );
+  };
+
+  const handleUnfollowUser = async (chatId, userId, targetUserId) => {
+    const currentUser = await getUser(userId);
+    const targetUser = await getUser(targetUserId);
+
+    if (!currentUser || !targetUser) {
+      await bot.sendMessage(chatId, '❌ User not found');
+      return;
+    }
+
+    const currentFollowing = (currentUser.following || []).filter(id => id !== targetUserId);
+    const targetFollowers = (targetUser.followers || []).filter(id => id !== userId);
+    
+    await updateUser(userId, { following: currentFollowing });
+    await updateUser(targetUserId, { followers: targetFollowers });
+
+    await bot.sendMessage(chatId, `❌ Unfollowed ${targetUser.username || 'User'}`);
+  };
+
+  // PROFILE MANAGEMENT
+  const handleStartSetUsername = async (chatId, userId) => {
+    await setUserState(userId, {
+      state: 'awaiting_username',
+      originalChatId: chatId
+    });
+
+    await bot.sendMessage(chatId, 
+      `📝 *Set Display Name*\n\nEnter your desired display name:\n\nMust be 3-20 characters, letters/numbers/underscores only.`
+    );
+  };
+
+  const handleStartSetBio = async (chatId, userId) => {
+    await setUserState(userId, {
+      state: 'awaiting_bio',
+      originalChatId: chatId
+    });
+
+    await bot.sendMessage(chatId, 
+      `📝 *Set Bio*\n\nEnter your bio (max 100 characters):`
+    );
+  };
+
+  const handleShowFollowers = async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const user = await getUser(userId);
+
+    const followers = user.followers || [];
+    
+    if (followers.length === 0) {
+      await bot.sendMessage(chatId, 
+        `👥 *Your Followers*\n\nNo followers yet. Share your profile to get followers!`
+      );
+      return;
+    }
+
+    let followersText = `👥 *Your Followers (${followers.length})*\n\n`;
+    
+    for (const followerId of followers.slice(0, 20)) { // Limit to 20
+      const follower = await getUser(followerId);
+      const name = follower?.username || 'Anonymous';
+      const commentCount = await getCommentCount(followerId);
+      const levelInfo = getUserLevel(commentCount);
+      followersText += `• ${levelInfo.symbol} ${name}\n`;
+    }
+
+    if (followers.length > 20) {
+      followersText += `\n... and ${followers.length - 20} more followers`;
+    }
+
+    const keyboard = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '🔍 Browse Users', callback_data: 'browse_users' },
+            { text: '🔙 Back to Profile', callback_data: 'my_profile' }
+          ]
+        ]
+      }
+    };
+
+    await bot.sendMessage(chatId, followersText, { 
+      parse_mode: 'Markdown',
+      ...keyboard
+    });
+  };
+
+  const handleShowFollowing = async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const user = await getUser(userId);
+
+    const following = user.following || [];
+    
+    if (following.length === 0) {
+      await bot.sendMessage(chatId, 
+        `👥 *You're Following*\n\nNot following anyone yet. Browse users to find people to follow!`
+      );
+      return;
+    }
+
+    let followingText = `👥 *You're Following (${following.length})*\n\n`;
+    
+    for (const followingId of following.slice(0, 20)) { // Limit to 20
+      const followee = await getUser(followingId);
+      const name = followee?.username || 'Anonymous';
+      const commentCount = await getCommentCount(followingId);
+      const levelInfo = getUserLevel(commentCount);
+      followingText += `• ${levelInfo.symbol} ${name}\n`;
+    }
+
+    if (following.length > 20) {
+      followingText += `\n... and ${following.length - 20} more users`;
+    }
+
+    const keyboard = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '🔍 Browse Users', callback_data: 'browse_users' },
+            { text: '🔙 Back to Profile', callback_data: 'my_profile' }
+          ]
+        ]
+      }
+    };
+
+    await bot.sendMessage(chatId, followingText, { 
+      parse_mode: 'Markdown',
+      ...keyboard
+    });
+  };
+
+  // NOTIFICATION SETTINGS
+  const handleNotificationSettings = async (chatId, userId) => {
+    const user = await getUser(userId);
+    const notifications = user.notifications || {
+      newFollower: true,
+      newComment: true,
+      newConfession: true,
+      directMessage: true
+    };
+    
+    let settingsText = `🔔 *Notification Settings*\n\n`;
+    settingsText += `🔔 New Followers: ${notifications.newFollower ? '✅ ON' : '❌ OFF'}\n`;
+    settingsText += `💬 New Comments: ${notifications.newComment ? '✅ ON' : '❌ OFF'}\n`;
+    settingsText += `📝 New Confessions: ${notifications.newConfession ? '✅ ON' : '❌ OFF'}\n`;
+    settingsText += `✉️ Direct Messages: ${notifications.directMessage ? '✅ ON' : '❌ OFF'}\n\n`;
+    settingsText += `Tap buttons to toggle settings:`;
+
+    const keyboard = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: notifications.newFollower ? '✅ Followers' : '❌ Followers', callback_data: 'toggle_follower_notif' },
+            { text: notifications.newComment ? '✅ Comments' : '❌ Comments', callback_data: 'toggle_comment_notif' }
+          ],
+          [
+            { text: notifications.newConfession ? '✅ Confessions' : '❌ Confessions', callback_data: 'toggle_confession_notif' },
+            { text: notifications.directMessage ? '✅ Messages' : '❌ Messages', callback_data: 'toggle_dm_notif' }
+          ],
+          [
+            { text: '💾 Save', callback_data: 'save_notifications' },
+            { text: '🔙 Back', callback_data: 'settings_menu' }
+          ]
+        ]
+      }
+    };
+
+    await bot.sendMessage(chatId, settingsText, { 
+      parse_mode: 'Markdown',
+      ...keyboard
+    });
+  };
+
+  // TOGGLE NOTIFICATIONS
+  const toggleNotification = async (userId, settingName) => {
+    const user = await getUser(userId);
+    const currentSetting = user.notifications?.[settingName] ?? true;
+    const newSetting = !currentSetting;
+    
+    await updateUser(userId, {
+      [`notifications.${settingName}`]: newSetting
+    });
+    
+    return newSetting;
+  };
+
+  // COMMENT SETTINGS
+  const handleCommentSettings = async (chatId, userId) => {
+    const user = await getUser(userId);
+    
+    const settings = user.commentSettings || {};
+    
+    let settingsText = `🔒 *Comment Settings*\n\n`;
+    settingsText += `Who can comment on your confessions:\n`;
+    settingsText += `• ${settings.allowComments === 'everyone' ? '✅' : '❌'} Everyone\n`;
+    settingsText += `• ${settings.allowComments === 'followers' ? '✅' : '❌'} Followers Only\n`;
+    settingsText += `• ${settings.allowComments === 'admin' ? '✅' : '❌'} Admin Only\n\n`;
+    settingsText += `Allow anonymous comments: ${settings.allowAnonymous ? '✅ Yes' : '❌ No'}\n`;
+    settingsText += `Require comment approval: ${settings.requireApproval ? '✅ Yes' : '❌ No'}\n`;
+
+    const keyboard = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: settings.allowComments === 'everyone' ? '✅ Everyone' : '❌ Everyone', callback_data: 'comment_everyone' },
+            { text: settings.allowComments === 'followers' ? '✅ Followers' : '❌ Followers', callback_data: 'comment_followers' }
+          ],
+          [
+            { text: settings.allowAnonymous ? '✅ Anonymous' : '❌ Anonymous', callback_data: 'comment_anon' },
+            { text: settings.requireApproval ? '✅ Approval' : '❌ Approval', callback_data: 'comment_approve' }
+          ],
+          [
+            { text: '💾 Save', callback_data: 'save_comment_settings' },
+            { text: '🔙 Back to Profile', callback_data: 'my_profile' }
+          ]
+        ]
+      }
+    };
+
+    await bot.sendMessage(chatId, settingsText, { 
+      parse_mode: 'Markdown',
+      ...keyboard
+    });
+  };
+
+  // VIEW MY RANK
+  const handleViewMyRank = async (chatId, userId) => {
+    const commentCount = await getCommentCount(userId);
+    const levelInfo = getUserLevel(commentCount);
+
+    // Count all users' comments
+    const commentCounts = {};
+    const commentsSnapshot = await db.collection('comments').get();
+    
+    commentsSnapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.comments) {
+        for (const comment of data.comments) {
+          const userId = comment.userId;
+          commentCounts[userId] = (commentCounts[userId] || 0) + 1;
+        }
+      }
+    });
+
+    const sortedUsers = Object.entries(commentCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([id, count]) => ({ id: parseInt(id), count }));
+
+    const userRank = sortedUsers.findIndex(user => user.id === userId) + 1;
+
+    let rankText = `🏆 *Your Comment Rank*\n\n`;
+    rankText += `Level: ${levelInfo.symbol} ${levelInfo.name}\n`;
+    rankText += `Total Comments: ${commentCount}\n`;
+    rankText += `Rank: #${userRank} of ${sortedUsers.length} users\n\n`;
+    rankText += `Keep commenting to climb the leaderboard!`;
+
+    const keyboard = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '📝 Add Comment', callback_data: 'add_comment' },
+            { text: '🏆 View Rankings', callback_data: 'view_rankings' }
+          ],
+          [
+            { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
+          ]
+        ]
+      }
+    };
+
+    await bot.sendMessage(chatId, rankText, { 
+      parse_mode: 'Markdown',
+      ...keyboard
+    });
+  };
+
+  // HELP COMMAND
+  const handleHelp = async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const adminStatus = isAdmin(userId);
+
+    let helpMessage = `ℹ️ *JU Confession Bot Help*\n\n` +
+      `*How to Use:*\n` +
+      `1. Click "📝 Send Confession" to submit anonymously\n` +
+      `2. Wait for admin approval\n` +
+      `3. View approved confessions in channel\n` +
+      `4. Comment on confessions and build reputation\n\n` +
+      `*Main Features:*\n` +
+      `• Anonymous confession submission\n` +
+      `• User profiles with display names\n` +
+      `• Follow/unfollow system\n` +
+      `• Comment and reputation system\n` +
+      `• Achievement tracking\n` +
+      `• User levels and rankings\n\n` +
+      `*Commands:*\n` +
+      `/start - Start the bot\n` +
+      `/help - Show this help\n`;
+
+    if (adminStatus) {
+      helpMessage += `\n*⚡ Admin Commands:*\n` +
+        `/admin - Admin panel\n`;
+    }
+
+    const keyboard = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '📝 Send Confession', callback_data: 'send_confession' },
+            { text: '👤 My Profile', callback_data: 'my_profile' }
+          ],
+          [
+            { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
+          ]
+        ]
+      }
+    };
+
+    await bot.sendMessage(chatId, helpMessage, { 
+      parse_mode: 'Markdown',
+      ...keyboard
+    });
+  };
+
   // ========== VERCEL HANDLER ========== //
   module.exports = async (req, res) => {
     res.setHeader('Access-Control-Allow-Credentials', true);
@@ -2236,12 +2386,7 @@ try {
       return res.status(200).json({
         status: 'online',
         message: 'JU Confession Bot is running on Vercel!',
-        timestamp: new Date().toISOString(),
-        stats: {
-          users: (await db.collection('users').get()).size,
-          confessions: (await db.collection('confessions').get()).size,
-          comments: (await db.collection('comments').get()).size
-        }
+        timestamp: new Date().toISOString()
       });
     }
 
@@ -2266,6 +2411,7 @@ try {
   };
 
   console.log('✅ JU Confession Bot configured for Vercel!');
+  console.log('🚀 All features are ready to use!');
 } catch (error) {
   console.error('Firebase initialization error:', error);
-          }
+      }
