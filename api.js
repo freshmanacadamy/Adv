@@ -21,40 +21,50 @@ try {
   const bot = new TelegramBot(process.env.BOT_TOKEN);
 
   // ========== DATABASE FUNCTIONS ========== //
-  async function getUser(userId) {
-    const userDoc = await db.collection('users').doc(userId.toString()).get();
-    if (!userDoc.exists) {
-      const newUser = {
-        telegramId: userId,
-        username: null,
-        firstName: null,
-        joinedAt: new Date().toISOString(),
-        reputation: 0,
-        dailyStreak: 0,
-        lastCheckin: null,
-        totalConfessions: 0,
-        followers: [],
-        following: [],
-        achievements: [],
-        bio: null,
-        isActive: true,
-        notifications: {
-          newFollower: true,
-          newComment: true,
-          newConfession: true,
-          directMessage: true
-        },
-        commentSettings: {
-          allowComments: 'everyone',
-          allowAnonymous: true,
-          requireApproval: false
-        }
-      };
-      await db.collection('users').doc(userId.toString()).set(newUser);
-      return newUser;
-    }
-    return userDoc.data();
+  // ========== DATABASE FUNCTIONS ========== //
+async function getUser(userId, msg = null) {
+  const userDoc = await db.collection('users').doc(userId.toString()).get();
+  if (!userDoc.exists) {
+    const newUser = {
+      telegramId: userId,
+      username: null,
+      firstName: msg?.from?.first_name || null,
+      lastName: msg?.from?.last_name || null,
+      joinedAt: new Date().toISOString(),
+      reputation: 0,
+      dailyStreak: 0,
+      lastCheckin: null,
+      totalConfessions: 0,
+      followers: [],
+      following: [],
+      achievements: [],
+      bio: null,
+      isActive: true,
+      notifications: {
+        newFollower: true,
+        newComment: true,
+        newConfession: true,
+        directMessage: true
+      },
+      commentSettings: {
+        allowComments: 'everyone',
+        allowAnonymous: true,
+        requireApproval: false
+      }
+    };
+    await db.collection('users').doc(userId.toString()).set(newUser);
+    return newUser;
   }
+  
+  const userData = userDoc.data();
+  // Ensure isActive exists and defaults to true if not set
+  if (userData.isActive === undefined) {
+    await updateUser(userId, { isActive: true });
+    userData.isActive = true;
+  }
+  
+  return userData;
+}
 
   async function updateUser(userId, updateData) {
     await db.collection('users').doc(userId.toString()).update(updateData);
@@ -254,24 +264,34 @@ try {
   };
 
   // ========== START COMMAND ========== //
-  const handleStart = async (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const args = msg.text.split(' ')[1];
+  // ========== START COMMAND ========== //
+const handleStart = async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  const args = msg.text.split(' ')[1];
 
-    // Handle comment redirection
-    if (args && args.startsWith('comments_')) {
-      const confessionId = args.replace('comments_', '');
-      await handleViewComments(chatId, confessionId);
-      return;
-    }
+  // Handle comment redirection
+  if (args && args.startsWith('comments_')) {
+    const confessionId = args.replace('comments_', '');
+    await handleViewComments(chatId, confessionId);
+    return;
+  }
 
-    // Get or create user
-    const user = await getUser(userId);
-    
-    if (!user.isActive) {
-      await bot.sendMessage(chatId, '❌ Your account has been blocked by admin.');
-      return;
+  // Get or create user - pass msg parameter to get firstName/lastName
+  const user = await getUser(userId, msg);
+  
+  // Add debugging
+  console.log('🔍 User debug:', {
+    userId,
+    username: user.username,
+    isActive: user.isActive,
+    hasUsername: !!user.username
+  });
+  
+  if (user.isActive === false) {
+    console.log('🚫 User is blocked:', userId);
+    await bot.sendMessage(chatId, '❌ Your account has been blocked by admin.');
+    return;
     }
 
     // Check if user has state to recover after redeployment
