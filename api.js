@@ -984,6 +984,7 @@ const notifyAdmins = async (confessionId, text, confessionNumber) => {
 };
 
 // ========== POST TO CHANNEL ========== //
+// ========== POST TO CHANNEL ========== //
 const postToChannel = async (text, number, confessionId) => {
   const CHANNEL_ID = process.env.CHANNEL_ID;
   const BOT_USERNAME = process.env.BOT_USERNAME;
@@ -993,42 +994,60 @@ const postToChannel = async (text, number, confessionId) => {
     return;
   }
 
+  console.log(`📤 Posting confession #${number} to channel: ${CHANNEL_ID}`);
+
   try {
-    // Create the message with confession number and text only once
-    const message = `#${number}\n\n${text}\n\n💬 Comment on this confession:`;
+    // Clean the text and create a simple message
+    const cleanText = text.trim();
+    const message = `#${number}\n\n${cleanText}\n\n💬 Comment on this confession:`;
     
+    console.log(`Message preview: ${message.substring(0, 100)}...`);
+
+    // Create inline keyboard - SIMPLIFIED
     const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { 
-              text: '👁️‍🗨️ View/Add Comments', 
-              url: `https://t.me/${BOT_USERNAME}?start=comment_${confessionId}`
-            }
-          ]
+      inline_keyboard: [
+        [
+          { 
+            text: '👁️‍🗨️ View/Add Comments', 
+            url: `https://t.me/${BOT_USERNAME}?start=comment_${confessionId}`
+          }
         ]
-      }
+      ]
     };
 
-    // Send the message ONLY ONCE with the keyboard
+    console.log('Keyboard created:', JSON.stringify(keyboard));
+
+    // Send message with proper formatting
     const sentMessage = await bot.sendMessage(CHANNEL_ID, message, {
-      parse_mode: 'Markdown',
-      reply_markup: keyboard.reply_markup
+      parse_mode: 'HTML', // Changed to HTML for better compatibility
+      reply_markup: keyboard,
+      disable_web_page_preview: true
     });
+
+    console.log(`✅ Message sent successfully! Message ID: ${sentMessage.message_id}`);
 
     // Initialize comments collection
     await updateComment(confessionId, {
       confessionId: confessionId,
       confessionNumber: number,
-      confessionText: text,
+      confessionText: cleanText,
       comments: [],
       totalComments: 0,
       channelMessageId: sentMessage.message_id
     });
     
-    console.log(`✅ Confession #${number} posted to channel`);
+    console.log(`✅ Confession #${number} fully processed`);
+    
+    return sentMessage;
   } catch (error) {
-    console.error('Channel post error:', error);
+    console.error('❌ Channel post error:', error);
+    
+    // More detailed error logging
+    if (error.response) {
+      console.error('Telegram API Response:', error.response.body);
+    }
+    
+    throw error;
   }
 };
 
