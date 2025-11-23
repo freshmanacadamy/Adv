@@ -306,7 +306,62 @@ const handleStart = async (msg) => {
   const userId = msg.from.id;
   const args = msg.text.split(' ')[1];
 
-  // Handle comment redirection
+  console.log(`🔗 Start command with args: ${args}`);
+
+  // Handle comment redirection from channel
+  if (args && args.startsWith('comment_')) {
+    const confessionId = args.replace('comment_', '');
+    console.log(`📝 Redirecting to comments for: ${confessionId}`);
+    
+    // Get confession details
+    const confession = await getConfession(confessionId);
+    if (!confession) {
+      await bot.sendMessage(chatId, '❌ Confession not found or may have been deleted.');
+      await showMainMenu(chatId);
+      return;
+    }
+
+    // Show comments with confession preview
+    const commentData = await getComment(confessionId);
+    let commentText = `💬 *Comments for Confession #${confession.confessionNumber}*\n\n`;
+    commentText += `*Confession:*\n${confession.text.substring(0, 200)}${confession.text.length > 200 ? '...' : ''}\n\n`;
+
+    const commentList = commentData.comments || [];
+    if (commentList.length === 0) {
+      commentText += 'No comments yet. Be the first to comment!\n\n';
+    } else {
+      commentText += `*Recent Comments (${commentList.length} total):*\n\n`;
+      for (let i = 0; i < Math.min(commentList.length, 3); i++) {
+        const comment = commentList[i];
+        const user = await getUser(comment.userId);
+        commentText += `${i + 1}. ${comment.text}\n`;
+        commentText += `   - ${user?.username || 'Anonymous'}\n\n`;
+      }
+    }
+
+    const keyboard = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '📝 Add Comment', callback_data: `add_comment_${confessionId}` },
+            { text: '👁️ View All Comments', callback_data: `comments_page_${confessionId}_1` }
+          ],
+          [
+            { text: '📝 Send Your Confession', callback_data: 'send_confession' },
+            { text: '🔙 Main Menu', callback_data: 'back_to_menu' }
+          ]
+        ]
+      }
+    };
+
+    await bot.sendMessage(chatId, commentText, { 
+      parse_mode: 'Markdown',
+      ...keyboard
+    });
+    return;
+  }
+
+  // Handle comment redirection from old format (backward compatibility)
   if (args && args.startsWith('comments_')) {
     const confessionId = args.replace('comments_', '');
     await handleViewComments(chatId, confessionId);
@@ -334,6 +389,18 @@ const handleStart = async (msg) => {
       originalChatId: chatId
     });
     return;
+  }
+
+  // Check if user has state to recover
+  const userState = await getUserState(userId);
+  if (userState) {
+    if (userState.state === 'awaiting_confession') {
+      await bot.sendMessage(chatId,
+        `✍️ *Send Your Confession*\n\nType your confession below (max 1000 characters):\n\nYou can add hashtags like #love #study #funny`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
   }
 
   await bot.sendMessage(chatId,
@@ -979,37 +1046,41 @@ const notifyUser = async (userId, number, status, reason = '') => {
 // ========== VIEW COMMENTS ========== //
 const handleViewComments = async (chatId, confessionId, page = 1) => {
   const commentData = await getComment(confessionId);
+  const confession = await getConfession(confessionId);
   
-  if (!commentData || !commentData.confessionNumber) {
-    await bot.sendMessage(chatId, '❌ Confession not found.');
+  if (!commentData || !confession) {
+    await bot.sendMessage(chatId, '❌ Confession not found or may have been deleted.');
+    await showMainMenu(chatId);
     return;
   }
 
   const commentList = commentData.comments || [];
-  const commentsPerPage = 3;
+  const commentsPerPage = 5; // Increased for better UX
   const totalPages = Math.ceil(commentList.length / commentsPerPage);
   const startIndex = (page - 1) * commentsPerPage;
   const endIndex = startIndex + commentsPerPage;
   const pageComments = commentList.slice(startIndex, endIndex);
 
-  let commentText = `💬 Comments for Confession #${commentData.confessionNumber}\n\n`;
+  let commentText = `💬 *Comments for Confession #${confession.confessionNumber}*\n\n`;
+  commentText += `*Confession Preview:*\n${confession.text.substring(0, 150)}${confession.text.length > 150 ? '...' : ''}\n\n`;
 
   if (pageComments.length === 0) {
     commentText += 'No comments yet. Be the first to comment!\n\n';
   } else {
-    commentText += `Comments (${startIndex + 1}-${Math.min(endIndex, commentList.length)} of ${commentList.length}):\n\n`;
+    commentText += `*Comments (${startIndex + 1}-${Math.min(endIndex, commentList.length)} of ${commentList.length}):*\n\n`;
     for (let i = 0; i < pageComments.length; i++) {
       const comment = pageComments[i];
       const user = await getUser(comment.userId);
       const userLevel = getUserLevel(await getCommentCount(comment.userId));
       
       commentText += `${startIndex + i + 1}. ${comment.text}\n`;
-      commentText += `   - ${userLevel.symbol} ${user?.username || 'Anonymous'}\n\n`;
+      commentText += `   - ${userLevel.symbol} ${user?.username || 'Anonymous'}\n`;
+      commentText += `   📅 ${comment.timestamp || new Date(comment.createdAt).toLocaleDateString()}\n\n`;
     }
   }
 
-  const confession = await getConfession(confessionId);
-  const author = confession ? await getUser(confession.userId) : null;
+  const author = await getUser(confession.userId);
+  const currentUser = await getUser(chatId);
 
   const keyboard = {
     reply_markup: {
@@ -1023,12 +1094,11 @@ const handleViewComments = async (chatId, confessionId, page = 1) => {
 
   // Add follow button if author exists and is not current user
   if (author && author.telegramId !== chatId) {
-    const currentUser = await getUser(chatId);
     const isFollowing = (currentUser?.following || []).includes(author.telegramId);
     keyboard.reply_markup.inline_keyboard[0].push(
       isFollowing 
         ? { text: '✅ Following', callback_data: `unfollow_${author.telegramId}` }
-        : { text: '👤 Follow Author', callback_data: `follow_author_${confessionId}` }
+        : { text: '👤 Follow Author', callback_data: `follow_${author.telegramId}` }
     );
   }
 
@@ -1049,8 +1119,10 @@ const handleViewComments = async (chatId, confessionId, page = 1) => {
     keyboard.reply_markup.inline_keyboard.push(paginationRow);
   }
 
+  // Add navigation buttons
   keyboard.reply_markup.inline_keyboard.push([
-    { text: '🔙 Back to Menu', callback_data: 'back_to_menu' }
+    { text: '📝 Send Confession', callback_data: 'send_confession' },
+    { text: '🔙 Main Menu', callback_data: 'back_to_menu' }
   ]);
 
   await bot.sendMessage(chatId, commentText, { 
