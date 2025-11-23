@@ -929,18 +929,20 @@ const postToChannel = async (text, number, confessionId) => {
   try {
     const message = `#${number}\n\n${text}\n\n💬 Comment on this confession:`;
     
-    await bot.sendMessage(CHANNEL_ID, message, {
+    const keyboard = {
       reply_markup: {
         inline_keyboard: [
           [
             { 
               text: '👁️‍🗨️ View/Add Comments', 
-              url: `https://t.me/${BOT_USERNAME}?start=comments_${confessionId}`
+              url: `https://t.me/${BOT_USERNAME}?start=comment_${confessionId}`
             }
           ]
         ]
       }
-    });
+    };
+
+    const sentMessage = await bot.sendMessage(CHANNEL_ID, message, keyboard);
 
     // Initialize comments collection
     await updateComment(confessionId, {
@@ -948,7 +950,8 @@ const postToChannel = async (text, number, confessionId) => {
       confessionNumber: number,
       confessionText: text,
       comments: [],
-      totalComments: 0
+      totalComments: 0,
+      channelMessageId: sentMessage.message_id
     });
     
     console.log(`✅ Confession #${number} posted to channel`);
