@@ -994,6 +994,7 @@ const postToChannel = async (text, number, confessionId) => {
   }
 
   try {
+    // Create the message with confession number and text only once
     const message = `#${number}\n\n${text}\n\n💬 Comment on this confession:`;
     
     const keyboard = {
@@ -1009,7 +1010,11 @@ const postToChannel = async (text, number, confessionId) => {
       }
     };
 
-    const sentMessage = await bot.sendMessage(CHANNEL_ID, message, keyboard);
+    // Send the message ONLY ONCE with the keyboard
+    const sentMessage = await bot.sendMessage(CHANNEL_ID, message, {
+      parse_mode: 'Markdown',
+      reply_markup: keyboard.reply_markup
+    });
 
     // Initialize comments collection
     await updateComment(confessionId, {
@@ -1024,22 +1029,6 @@ const postToChannel = async (text, number, confessionId) => {
     console.log(`✅ Confession #${number} posted to channel`);
   } catch (error) {
     console.error('Channel post error:', error);
-  }
-};
-
-// ========== NOTIFY USER ========== //
-const notifyUser = async (userId, number, status, reason = '') => {
-  try {
-    let message = '';
-    if (status === 'approved') {
-      message = `🎉 *Your Confession #${number} was approved!*\n\nIt has been posted to the channel.\n\n⭐ +10 reputation points`;
-      await sendNotification(userId, message, 'newConfession');
-    } else if (status === 'rejected') {
-      message = `❌ *Confession Not Approved*\n\nReason: ${reason}\n\nYou can submit a new one.`;
-      await sendNotification(userId, message, 'newConfession');
-    }
-  } catch (error) {
-    console.error('User notify error:', error);
   }
 };
 
