@@ -1790,26 +1790,200 @@ const handleBroadcastMessage = async (chatId, userId) => {
         const user = await getUser(userId);
         const current = user.commentSettings?.allowAnonymous ?? true;
         await updateUser(userId, { 'commentSettings.allowAnonymous': !current });
-        await bot.answerCallbackQuery(callbackQuery.id, { text: `✅ Anonymous comments ${!current ? 'enabled' : 'disabled'}` });
-        await handleCommentSettings(chatId, userId);
-      } else if (data === 'comment_approve') {
-        const user = await getUser(userId);
-        const current = user.commentSettings?.requireApproval ?? false;
-        await updateUser(userId, { 'commentSettings.requireApproval': !current });
-        await bot.answerCallbackQuery(callbackQuery.id, { text: `✅ Comment approval ${!current ? 'enabled' : 'disabled'}` });
-        await handleCommentSettings(chatId, userId);
-      
-      // Default case - answer callback to remove loading state
-      } else {
-        await bot.answerCallbackQuery(callbackQuery.id);
+
+// ========== CALLBACK QUERY HANDLER ========== //
+const handleCallbackQuery = async (callbackQuery) => {
+  const message = callbackQuery.message;
+  const userId = callbackQuery.from.id;
+  const data = callbackQuery.data;
+  const chatId = message.chat.id;
+
+  try {
+    console.log(`📨 Callback received: ${data} from user ${userId}`);
+
+    // Admin actions
+    if (data.startsWith('approve_')) {
+      const confessionId = data.replace('approve_', '');
+      await handleApproveConfession(chatId, userId, confessionId, callbackQuery.id);
+    } else if (data.startsWith('reject_')) {
+      const confessionId = data.replace('reject_', '');
+      await handleRejectConfession(chatId, userId, confessionId, callbackQuery.id);
+    
+    // Comment actions
+    } else if (data.startsWith('add_comment_')) {
+      const confessionId = data.replace('add_comment_', '');
+      await handleStartComment(chatId, confessionId, callbackQuery.id);
+    } else if (data.startsWith('comments_page_')) {
+      const parts = data.split('_');
+      const confessionId = parts[2];
+      const page = parseInt(parts[3]);
+      await handleViewComments(chatId, confessionId, page);
+      await bot.answerCallbackQuery(callbackQuery.id);
+    
+    } else if (data === 'current_page') {
+      // Just answer the callback without doing anything
+      await bot.answerCallbackQuery(callbackQuery.id);
+    
+    // User profile actions
+    } else if (data.startsWith('view_profile_')) {
+      const targetUserId = parseInt(data.replace('view_profile_', ''));
+      await handleViewProfile(chatId, targetUserId, callbackQuery.id);
+    } else if (data.startsWith('follow_')) {
+      const targetUserId = parseInt(data.replace('follow_', ''));
+      await handleFollowUser(chatId, userId, targetUserId);
+      await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Followed user!' });
+    } else if (data.startsWith('unfollow_')) {
+      const targetUserId = parseInt(data.replace('unfollow_', ''));
+      await handleUnfollowUser(chatId, userId, targetUserId);
+      await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Unfollowed user!' });
+    } else if (data.startsWith('follow_author_')) {
+      const confessionId = data.replace('follow_author_', '');
+      const confession = await getConfession(confessionId);
+      if (confession) {
+        await handleFollowUser(chatId, userId, confession.userId);
+        await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Followed author!' });
       }
-
-    } catch (error) {
-      console.error('Callback error:', error);
-      await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Error processing request' });
+    
+    // Admin user management
+    } else if (data.startsWith('view_user_')) {
+      const targetUserId = parseInt(data.replace('view_user_', ''));
+      await handleViewUser(chatId, userId, targetUserId);
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data.startsWith('toggle_block_')) {
+      const targetUserId = parseInt(data.replace('toggle_block_', ''));
+      await handleToggleBlockUser(chatId, userId, targetUserId);
+      await bot.answerCallbackQuery(callbackQuery.id);
+    
+    // Main menu actions
+    } else if (data === 'send_confession') {
+      await handleSendConfession({ chat: { id: chatId }, from: { id: userId } });
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data === 'my_profile') {
+      await handleMyProfile({ chat: { id: chatId }, from: { id: userId } });
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data === 'promote_bot') {
+      await handlePromoteBot({ chat: { id: chatId }, from: { id: userId } });
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data === 'back_to_menu') {
+      await showMainMenu(chatId);
+      await bot.answerCallbackQuery(callbackQuery.id);
+    
+    // Profile management
+    } else if (data === 'set_username') {
+      await handleStartSetUsername(chatId, userId);
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data === 'set_bio') {
+      await handleStartSetBio(chatId, userId);
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data === 'show_followers') {
+      await handleShowFollowers({ chat: { id: chatId }, from: { id: userId } });
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data === 'show_following') {
+      await handleShowFollowing({ chat: { id: chatId }, from: { id: userId } });
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data === 'my_confessions') {
+      await handleMyConfessions(chatId, userId);
+      await bot.answerCallbackQuery(callbackQuery.id);
+    
+    // Settings
+    } else if (data === 'comment_settings') {
+      await handleCommentSettings(chatId, userId);
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data === 'notification_settings') {
+      await handleNotificationSettings(chatId, userId);
+      await bot.answerCallbackQuery(callbackQuery.id);
+    
+    // Rankings and achievements
+    } else if (data === 'view_rankings') {
+      await handleBestCommenters({ chat: { id: chatId }, from: { id: userId } });
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data === 'view_my_rank') {
+      await handleViewMyRank(chatId, userId);
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data === 'view_achievements') {
+      await handleAchievements({ chat: { id: chatId }, from: { id: userId } });
+      await bot.answerCallbackQuery(callbackQuery.id);
+    
+    // Browse users
+    } else if (data === 'browse_users') {
+      await handleBrowseUsers({ chat: { id: chatId }, from: { id: userId } });
+      await bot.answerCallbackQuery(callbackQuery.id);
+    
+    // Admin panel
+    } else if (data === 'admin_menu') {
+      await handleAdmin({ chat: { id: chatId }, from: { id: userId } });
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data === 'manage_users') {
+      await handleManageUsers(chatId, userId);
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data === 'review_confessions') {
+      await handleReviewConfessions(chatId, userId);
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data === 'bot_stats') {
+      await handleBotStats(chatId, userId);
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data === 'block_user') {
+      await handleStartBlockUser(chatId, userId);
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data === 'message_user') {
+      await handleStartMessageUser(chatId, userId);
+      await bot.answerCallbackQuery(callbackQuery.id);
+    } else if (data === 'broadcast_message') {
+      await handleBroadcastMessage(chatId, userId);
+      await bot.answerCallbackQuery(callbackQuery.id);
+    
+    // Notification settings
+    } else if (data === 'toggle_follower_notif') {
+      const newState = await toggleNotification(userId, 'newFollower');
+      await bot.answerCallbackQuery(callbackQuery.id, { text: `New Followers: ${newState ? 'ON' : 'OFF'}` });
+      await handleNotificationSettings(chatId, userId);
+    } else if (data === 'toggle_comment_notif') {
+      const newState = await toggleNotification(userId, 'newComment');
+      await bot.answerCallbackQuery(callbackQuery.id, { text: `New Comments: ${newState ? 'ON' : 'OFF'}` });
+      await handleNotificationSettings(chatId, userId);
+    } else if (data === 'toggle_confession_notif') {
+      const newState = await toggleNotification(userId, 'newConfession');
+      await bot.answerCallbackQuery(callbackQuery.id, { text: `New Confessions: ${newState ? 'ON' : 'OFF'}` });
+      await handleNotificationSettings(chatId, userId);
+    } else if (data === 'toggle_dm_notif') {
+      const newState = await toggleNotification(userId, 'directMessage');
+      await bot.answerCallbackQuery(callbackQuery.id, { text: `Direct Messages: ${newState ? 'ON' : 'OFF'}` });
+      await handleNotificationSettings(chatId, userId);
+    } else if (data === 'save_notifications') {
+      await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Settings saved!' });
+    
+    // Comment settings
+    } else if (data === 'comment_everyone') {
+      await updateUser(userId, { 'commentSettings.allowComments': 'everyone' });
+      await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Comments set to Everyone' });
+      await handleCommentSettings(chatId, userId);
+    } else if (data === 'comment_followers') {
+      await updateUser(userId, { 'commentSettings.allowComments': 'followers' });
+      await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Comments set to Followers Only' });
+      await handleCommentSettings(chatId, userId);
+    } else if (data === 'comment_anon') {
+      const user = await getUser(userId);
+      const current = user.commentSettings?.allowAnonymous ?? true;
+      await updateUser(userId, { 'commentSettings.allowAnonymous': !current });
+      await bot.answerCallbackQuery(callbackQuery.id, { text: `✅ Anonymous comments ${!current ? 'enabled' : 'disabled'}` });
+      await handleCommentSettings(chatId, userId);
+    } else if (data === 'comment_approve') {
+      const user = await getUser(userId);
+      const current = user.commentSettings?.requireApproval ?? false;
+      await updateUser(userId, { 'commentSettings.requireApproval': !current });
+      await bot.answerCallbackQuery(callbackQuery.id, { text: `✅ Comment approval ${!current ? 'enabled' : 'disabled'}` });
+      await handleCommentSettings(chatId, userId);
+    
+    // Default case - answer callback to remove loading state
+    } else {
+      await bot.answerCallbackQuery(callbackQuery.id);
     }
-  };
 
+  } catch (error) {
+    console.error('Callback error:', error);
+    await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Error processing request' });
+  }
+};
   // ========== MESSAGE HANDLER ========== //
   const handleMessage = async (msg) => {
     const chatId = msg.chat.id;
